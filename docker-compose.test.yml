@@ -15,7 +15,7 @@ services:
     <<: *x-python-service
     build:
       context: .
-      dockerfile: ./config/docker/backend.Dockerfile
+      dockerfile: ./config/docker/Dockerfile.test-executor
       target: tests-executor
     image: gateway-tests
     env_file:

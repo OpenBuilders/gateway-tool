@@ -4,7 +4,6 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 
 from core.actions.base import BaseAction
-from core.actions.sticker.external import ExternalStickerAction
 from core.dtos.user import TelegramUserDTO
 from core.models.user import User
 
@@ -26,9 +25,6 @@ class UserAction(BaseAction):
         :param user: The user entity for which the data should be indexed.
         """
         logger.info(f"Indexing user {user.id!r} upon creation...")
-        sticker_action = ExternalStickerAction(self.db_session)
-        sticker_action.index_user_ownership_data(user_id=user.id)
-        logger.info(f"Successfully indexed user {user.id!r} stickers ownership data.")
 
     def create(self, telegram_user: TelegramUserDTO) -> User:
         """

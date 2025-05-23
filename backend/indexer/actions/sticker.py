@@ -1,4 +1,5 @@
 import logging
+from typing import AsyncGenerator
 
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
@@ -9,20 +10,23 @@ from core.dtos.sticker import (
     StickerDomCollectionOwnershipMetadataDTO,
     StickerCollectionDTO,
     StickerDomCollectionWithCharacters,
+    StickerItemDTO,
 )
+from core.models import StickerItem
 from core.services.sticker.character import StickerCharacterService
 from core.services.sticker.collection import StickerCollectionService
 from core.services.sticker.item import StickerItemService
 from core.services.superredis import RedisService
 from core.services.user import UserService
 from indexer.indexers.stickerdom import StickerDomService
-
+from indexer.settings import indexer_settings
 
 logger = logging.getLogger(__name__)
 
 
 class IndexerStickerItemAction:
     def __init__(self, db_session: Session) -> None:
+        self.db_session = db_session
         self.sticker_dom_service = StickerDomService()
         self.sticker_collection_service = StickerCollectionService(
             db_session=db_session
@@ -166,7 +170,7 @@ class IndexerStickerItemAction:
         This method retrieves the current metadata for a collection and compares it with cached metadata.
         If the metadata has not changed, the method skips the update and returns None. Otherwise, it fetches
         the ownership data, updates the cache, and returns the latest data. Metadata cache is refreshed
-        approximately every 6 hours to ensure the data remains up-to-date.
+        approximately every 6 hours to ensure the data remains up to date.
 
         :param collection_id: Unique identifier of the sticker collection for which ownership information
             is required.
@@ -201,15 +205,6 @@ class IndexerStickerItemAction:
         ownership = await self.sticker_dom_service.fetch_collection_ownership_data(
             metadata=metadata
         )
-        # Set the cache for the ownership data so it could be reused to avoid heavy decryption operations.
-        # IMPORTANT: Don't store mapped data as some records (e.g., users) might not exist in the database
-        # at the time of processing but could be created later.
-        self.redis_service.set(
-            self.external_sticker_action.get_data_cache_key(
-                collection_id=collection_id
-            ),
-            ownership.model_dump_json(),
-        )
         # At the very end, set the cache for the metadata with expiry set to 6 hours.
         # It'll help to ensure that at least every 6 hours the list is refreshed if needed
         self.redis_service.set(
@@ -219,7 +214,7 @@ class IndexerStickerItemAction:
 
     async def process_collection_ownerships(
         self, collection_dto: StickerCollectionDTO
-    ) -> set[int]:
+    ) -> AsyncGenerator[set[int], None]:
         """
         Batch processes a sticker collection by updating ownership information and
         handling changes in sticker items within the collection.
@@ -240,7 +235,7 @@ class IndexerStickerItemAction:
             logger.warning(
                 f"No updated metadata found for collection {collection_dto.id!r}. Skipping batch process."
             )
-            return set()
+            return
 
         try:
             collection = self.sticker_collection_service.get(
@@ -250,76 +245,100 @@ class IndexerStickerItemAction:
             logger.error(
                 f"No result found for collection {collection_dto.id!r} when processing ownerships. "
             )
-            return set()
+            return
 
-        previous_items = self.sticker_item_service.get_all(collection_id=collection.id)
-        previous_items_by_id = {sticker.id: sticker for sticker in previous_items}
-        internal_new_items = self.external_sticker_action.map_external_data_to_internal(
-            collection_id=collection.id,
-            items=new_items.ownership_data,
-        )
+        for batch_start in range(
+            0,
+            len(new_items.ownership_data),
+            indexer_settings.sticker_dom_batch_processing_size,
+        ):
+            batch = new_items.ownership_data[
+                batch_start : batch_start
+                + indexer_settings.sticker_dom_batch_processing_size
+            ]
+            previous_items = self.sticker_item_service.get_all(
+                collection_id=collection.id,
+                item_ids=[item.id for item in batch],
+            )
+            previous_items_ownership = {
+                sticker.id: sticker.telegram_user_id for sticker in previous_items
+            }
 
-        updated_users_ids = set()
+            updated_users_ids = set()
+            new_db_items = []
+            updated_db_items = []
+            internal_new_items: list[
+                StickerItemDTO
+            ] = self.external_sticker_action.map_external_data_to_internal(
+                collection_id=collection.id,
+                items=batch,
+            )
 
-        for new_item in internal_new_items:
-            if not (previous_item := previous_items_by_id.get(new_item.id)):
-                logger.info(
-                    f"Found new sticker item {new_item.id!r} for collection {collection.id!r} "
-                    f"with owner {new_item.user_id!r}. Creating new item."
-                )
-                self.sticker_item_service.create(
-                    item_id=new_item.id,
-                    collection_id=new_item.collection_id,
-                    character_id=new_item.character_id,
-                    user_id=new_item.user_id,
-                    instance=new_item.instance,
-                )
-                # No need to inform about any updates as no ownership reduction has occurred.
-                continue
+            for new_item in internal_new_items:
+                if not (
+                    previous_item_owner_telegram_id := previous_items_ownership.get(
+                        new_item.id
+                    )
+                ):
+                    logger.info(
+                        f"Found new sticker item {new_item.id!r} for collection {collection.id!r} "
+                        f"with owner {new_item.telegram_user_id!r}. Creating new item."
+                    )
+                    new_db_items.append(
+                        StickerItem(
+                            id=new_item.id,
+                            collection_id=new_item.collection_id,
+                            character_id=new_item.character_id,
+                            telegram_user_id=new_item.telegram_user_id,
+                            instance=new_item.instance,
+                        )
+                    )
+                    # No need to inform about any updates as no ownership reduction has occurred.
+                    continue
 
-            if previous_item.user_id != new_item.user_id:
-                logger.info(
-                    f"Ownership of the sticker for item {new_item.id!r} in the collection {collection.id!r} changed "
-                    f"from {previous_item.user_id!r} to {new_item.user_id!r}. Updating ownership."
-                )
-                previous_user_id = previous_item.user_id
-                self.sticker_item_service.update(
-                    item=previous_item,
-                    user_id=new_item.user_id,
-                )
-                # We should inform that for some user the sticker ownership has changed.
-                # We don't have to do this for the new user as they got more sticker items.
-                # But we should do that for the previous user as they have fewer sticker items now.
-                updated_users_ids.add(previous_user_id)
+                if previous_item_owner_telegram_id != new_item.telegram_user_id:
+                    logger.info(
+                        f"Ownership of the sticker for item {new_item.id!r} in the collection {collection.id!r} changed "
+                        f"from {previous_item_owner_telegram_id!r} to {new_item.telegram_user_id!r}. Updating ownership."
+                    )
+                    updated_db_items.append(
+                        {
+                            "id": new_item.id,
+                            "telegram_user_id": new_item.telegram_user_id,
+                        }
+                    )
+                    # We should inform that for some user the sticker ownership has changed.
+                    # We don't have to do this for the new user as they got more sticker items.
+                    # But we should do that for the previous user as they have fewer sticker items now.
+                    updated_users_ids.add(previous_item_owner_telegram_id)
 
-        return updated_users_ids
+            self.db_session.bulk_save_objects(new_db_items)
+            self.db_session.bulk_update_mappings(StickerItem, updated_db_items)
+            self.db_session.commit()
+            yield updated_users_ids
 
     async def refresh_ownerships(
         self,
         collections: list[StickerCollectionDTO],
-    ) -> set[int]:
+    ) -> AsyncGenerator[set[int], None]:
         """
-        Processes a batch of sticker collections asynchronously and aggregates the
-        targeted users from all the collections.
+        Refreshes ownerships for a given list of sticker collections.
+        This coroutine iterates over each collection in the provided list,
+        processes their ownerships, and asynchronously yields sets of user IDs
+        that are targeted by the ownership updates.
 
-        This method iterates through each provided sticker collection, processes it
-        using the `batch_process_collection` method, and updates a set with all the
-        users targeted by each collection.
-        The result is a unique set of users targeted by all processed collections.
+        The whole chain of iterators is designed to reduce RAM usage
+        by avoiding storing too much data in memory.
 
-        :param collections:
-            The list of StickerCollectionDTO objects representing the sticker
-            collections to process.
-        :return:
-            A set containing all unique user IDs targeted across the provided
-            collections.
+        :param collections: A list of `StickerCollectionDTO` representing the sticker
+            collections whose ownerships need to be refreshed.
+
+        :return: An asynchronous generator yielding sets of integers, where each set
+            corresponds to the IDs of users affected by the ownership updates.
         """
-        all_targeted_users_ids = set()
 
         for collection in collections:
-            targeted_users = await self.process_collection_ownerships(
+            async for targeted_users in self.process_collection_ownerships(
                 collection_dto=collection
-            )
-            all_targeted_users_ids.update(targeted_users)
-
-        return all_targeted_users_ids
+            ):
+                yield targeted_users

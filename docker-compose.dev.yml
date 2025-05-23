@@ -15,7 +15,7 @@ services:
     <<: *x-python-service
     build:
       context: .
-      dockerfile: ./config/docker/backend.Dockerfile
+      dockerfile: ./config/docker/Dockerfile.api
       target: api
     image: gateway-api
     env_file:
@@ -57,8 +57,7 @@ services:
     pull_policy: never
     build:
       context: .
-      dockerfile: ./config/docker/frontend.Dockerfile
-      target: development
+      dockerfile: ./config/docker/Dockerfile.frontend-dev
     container_name: "gateway-frontend"
     volumes:
       - ./frontend/src:/app/src

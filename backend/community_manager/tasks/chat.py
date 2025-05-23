@@ -4,9 +4,7 @@ from celery.utils.log import get_task_logger
 
 from community_manager.actions.chat import CommunityManagerChatAction
 from community_manager.celery_app import app
-from community_manager.entrypoint import init_client
 from community_manager.settings import community_manager_settings
-from core.actions.authorization import AuthorizationAction
 from core.actions.chat import TelegramChatAction
 from core.actions.chat.rule.whitelist import (
     TelegramChatWhitelistExternalSourceContentAction,
@@ -14,33 +12,9 @@ from core.actions.chat.rule.whitelist import (
 from core.constants import (
     CELERY_SYSTEM_QUEUE_NAME,
 )
-from core.services.chat.user import TelegramChatUserService
 from core.services.db import DBService
 
 logger = get_task_logger(__name__)
-
-
-async def sanity_chat_checks(target_chat_members: set[tuple[int, int]]) -> None:
-    logger.info(f"Validating chat members for {target_chat_members}")
-    with DBService().db_session() as db_session:
-        telegram_chat_user_service = TelegramChatUserService(db_session)
-        chat_members = telegram_chat_user_service.get_all_pairs(
-            chat_member_pairs=target_chat_members
-        )
-
-        if not chat_members:
-            logger.info("No chats to validate. Skipping")
-            return
-        else:
-            logger.info(f"Found {len(chat_members)} chat members to validate")
-
-        telethon_service = init_client()
-        authorization_action = AuthorizationAction(
-            db_session, telethon_client=telethon_service.client
-        )
-        await authorization_action.kick_ineligible_chat_members(
-            chat_members=chat_members
-        )
 
 
 @app.task(

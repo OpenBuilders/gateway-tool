@@ -103,21 +103,47 @@ class TelegramChatUserService(BaseService):
         return query.all()
 
     def get_all(
-        self, chat_id: int | None = None, user_ids: list[int] | None = None
+        self,
+        chat_ids: list[int] | None = None,
+        user_ids: list[int] | None = None,
+        with_wallet_details: bool = True,
     ) -> list[TelegramChatUser]:
+        """
+        Retrieve a list of TelegramChatUser objects filtered by provided parameters.
+
+        This method fetches data from the database based on specified filters such as
+        chat IDs or user IDs.
+        Additionally, it can prefetch related wallet details associated with the TelegramChatUser objects.
+
+        :param chat_ids: List of chat IDs to filter TelegramChatUser objects.
+        If None,
+            no filtering is applied based on chat IDs.
+        :param user_ids: List of user IDs to filter TelegramChatUser objects.
+        If None,
+            no filtering is applied based on user IDs.
+        :param with_wallet_details: Flag to include wallet details in the result.
+        If
+            True, users and their associated wallet information are retrieved.
+            Defaults
+            to True.
+        :return: List of TelegramChatUser objects that match the provided filters.
+        If
+            no filters are applied, all TelegramChatUser objects are returned.
+        """
         query = self.db_session.query(TelegramChatUser)
 
-        if chat_id is not None:
-            query = query.filter(TelegramChatUser.chat_id == chat_id)
+        if chat_ids is not None:
+            query = query.filter(TelegramChatUser.chat_id.in_(chat_ids))
 
-        if user_ids:
+        if user_ids is not None:
             query = query.filter(TelegramChatUser.user_id.in_(user_ids))
 
-        query = query.options(
-            joinedload(TelegramChatUser.wallet_link).options(
-                joinedload(TelegramChatUserWallet.wallet),
+        if with_wallet_details:
+            query = query.options(
+                joinedload(TelegramChatUser.wallet_link).options(
+                    joinedload(TelegramChatUserWallet.wallet),
+                )
             )
-        )
 
         return query.all()
 
@@ -213,7 +239,7 @@ class TelegramChatUserService(BaseService):
         logger.debug(f"Telegram Chat User {user_id!r} in chat {chat_id!r} deleted.")
 
     def create_batch(self, chat_id: int, user_ids: list[int]) -> list[TelegramChatUser]:
-        existing_chat_users = self.get_all(chat_id=chat_id, user_ids=user_ids)
+        existing_chat_users = self.get_all(chat_ids=[chat_id], user_ids=user_ids)
         existing_chat_user_ids = {
             chat_user.user_id for chat_user in existing_chat_users
         }
@@ -221,7 +247,9 @@ class TelegramChatUserService(BaseService):
         new_chat_members = set(user_ids) - existing_chat_user_ids
 
         chat_users = [
-            self._create(chat_id=chat_id, user_id=user_id, is_admin=False)
+            self._create(
+                chat_id=chat_id, user_id=user_id, is_admin=False, is_managed=True
+            )
             for user_id in new_chat_members
         ]
         self.db_session.commit()

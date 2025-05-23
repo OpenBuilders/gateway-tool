@@ -25,7 +25,6 @@ class User(Base):
     )
     allows_write_to_pm = mapped_column(Boolean, nullable=False, default=True)
 
-    # TODO refactor to wallets and remove access to this from any eligibility-checking logic
     wallets = relationship(
         "UserWallet",
         uselist=True,

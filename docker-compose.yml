@@ -26,8 +26,7 @@ services:
     <<: *x-python-service
     build:
       context: .
-      dockerfile: config/docker/backend.Dockerfile
-      target: indexer
+      dockerfile: config/docker/Dockerfile.indexer
     image: gateway-indexer
     env_file:
       - ./config/env/.core.env
@@ -74,8 +73,7 @@ services:
     <<: *x-python-service
     build:
       context: .
-      dockerfile: ./config/docker/backend.Dockerfile
-      target: community-manager
+      dockerfile: ./config/docker/Dockerfile.community-manager
     image: gateway-community-manager
     env_file:
       - ./config/env/.core.env
@@ -110,8 +108,7 @@ services:
     <<: *x-python-service
     build:
       context: .
-      dockerfile: ./config/docker/backend.Dockerfile
-      target: scheduler
+      dockerfile: ./config/docker/Dockerfile.scheduler
     image: gateway-scheduler
     env_file:
       - ./config/env/.core.env
@@ -133,8 +130,7 @@ services:
     <<: *x-python-service
     build:
       context: .
-      dockerfile: ./config/docker/backend.Dockerfile
-      target: api
+      dockerfile: ./config/docker/Dockerfile.api
     image: gateway-api
     env_file:
       - ./config/env/.api.env
@@ -143,8 +139,6 @@ services:
     container_name: "gateway-api"
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend/core/static:/app/core/static
     command: [
       "gunicorn",
       "api.app:app",

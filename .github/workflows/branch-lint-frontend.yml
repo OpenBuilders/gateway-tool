@@ -2,8 +2,6 @@ name: FE lint
 
 on:
   push:
-    branches-ignore:
-      - main
     paths:
       - 'frontend/**'
 

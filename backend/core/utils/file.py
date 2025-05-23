@@ -1,11 +1,11 @@
 import logging
 import re
 from pathlib import Path
+from typing import IO
 
 from httpx import Client, Response
 from pytonapi.schema.nft import ImagePreview
 
-from core.constants import STATIC_PATH
 
 client = Client()
 
@@ -42,34 +42,32 @@ def guess_file_extension(response: Response) -> str | None:
 
 def download_media(
     url: str,
-    name: str,
-    subdirectory: str | Path | None = None,
-    default_extension: str = ".webp",
-) -> Path | None:
+    target_location: IO[bytes],
+    default_extension: str = "webp",
+) -> str | None:
     """
-    Download media from URL.
+    Downloads media from a URL and writes it to the specified location. If the file
+    extension cannot be determined, a default extension is applied. The function
+    also returns the appropriate file extension used for the media, or None in
+    case of failure.
 
-    :param url: URL to download media from.
-    :param name: Name of the file that will be used. Should not include the extension.
-    :param subdirectory: Subdirectory to save the file in.
-    :param default_extension: Default extension to use if the extension cannot be guessed.
-
-    :return: Path to the downloaded file if file was downloaded successfully, None otherwise.
+    :param url: The URL of the media file to be downloaded.
+    :param target_location: A writable binary stream where the media content
+        will be saved.
+    :param default_extension: Optional default file extension to use if the
+        file extension cannot be determined. The default is ".webp".
+    :return: The file extension that is applied to the downloaded media or None if
+        the download fails.
     """
-    root_path = STATIC_PATH / (subdirectory or "")
-
     try:
         response = client.get(url)
     except:  # noqa: E722
         logger.exception("Unable to download media")
         return None
 
-    file_name = f"{name}.{guess_file_extension(response) or default_extension}"
-    full_path = root_path / file_name
-    with open(full_path, "wb") as file:
-        file.write(response.content)
-
-    return full_path
+    file_extension = guess_file_extension(response) or default_extension
+    target_location.write(response.content)
+    return file_extension
 
 
 def pick_best_preview(previews: list[ImagePreview]) -> ImagePreview:

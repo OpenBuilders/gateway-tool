@@ -66,7 +66,15 @@ class StickerDomService:
         """
         async with AsyncClient() as client:
             # Step 1: Get URL for collection data bucket with wrapped DEK
-            meta_response = await client.get(self._get_ownership_url(collection_id))
+            headers = {}
+            if indexer_settings.sticker_dom_ownership_header_key:
+                headers[
+                    indexer_settings.sticker_dom_ownership_header_key
+                ] = indexer_settings.sticker_dom_ownership_header_value
+            meta_response = await client.get(
+                self._get_ownership_url(collection_id),
+                headers=headers,
+            )
             meta_response.raise_for_status()
 
             metadata = meta_response.json()

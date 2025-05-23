@@ -3,7 +3,6 @@ interface Config {
   isProd?: boolean
   apiHost: string
   botLink: string
-  CDN: string
   tonConnectManifestUrl: string
   accessToken?: string
   botName: string
@@ -11,20 +10,18 @@ interface Config {
 
 const devConfig: Config = {
   isDev: true,
-  apiHost: 'https://gate.essentis.xyz/api',
+  apiHost: 'https://dev-api.gateway.tools.tg',
   botName: 'ggooccttaa_bot',
   botLink: 'https://t.me/ggooccttaa_bot',
-  CDN: 'https://pub-afc0b291195b4529b0de88319506f30b.r2.dev',
   tonConnectManifestUrl: 'https://cdn.joincommunity.xyz/gateway/manifest.json',
   accessToken: import.meta.env.VITE_ACCESS_TOKEN,
 }
 
 const prodConfig: Config = {
   isProd: true,
-  apiHost: 'https://gate.essentis.xyz/api',
-  botName: 'ggooccttaa_bot',
-  botLink: 'https://t.me/ggooccttaa_bot',
-  CDN: 'https://pub-afc0b291195b4529b0de88319506f30b.r2.dev',
+  apiHost: 'https://api.gateway.tools.tg',
+  botName: 'gateway_app_bot',
+  botLink: 'https://t.me/gateway_app_bot',
   tonConnectManifestUrl: 'https://cdn.joincommunity.xyz/gateway/manifest.json',
 }
 

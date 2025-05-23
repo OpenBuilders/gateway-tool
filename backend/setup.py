@@ -9,9 +9,4 @@ setup(
     classifiers=[
         "Programming Language :: Python :: 3",
     ],
-    entry_points={
-        "console_scripts": [
-            "load-sticker-collections = indexer.cli.load_sticker_collections:main"
-        ]
-    },
 )

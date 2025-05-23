@@ -1,6 +1,5 @@
 import logging
-from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, IO, BinaryIO
 
 from telethon import TelegramClient, Button
 from telethon.sessions import MemorySession
@@ -20,9 +19,7 @@ from telethon.tl.types import (
     ChatPhotoEmpty,
 )
 
-from core.constants import CHAT_LOGO_PATH
 from core.settings import core_settings
-from core.utils.file import clean_old_versions
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +94,22 @@ class TelethonService:
     async def download_profile_photo(
         self,
         entity: Channel,
+        target_location: BinaryIO | IO[bytes],
         current_logo_path: str | None = None,
-    ) -> Path | None:
+    ) -> str | None:
+        """
+        Downloads the profile photo of a specified chat entity if it exists and is not up-to-date.
+        Handles cases where the chat does not have a photo or when the existing photo is already
+        current. If the download occurs, the function returns the new file name of the photo.
+
+        :param entity: The chat entity from which the profile photo is to be downloaded.
+        :param target_location: A BytesIO object representing the target location for downloading
+            the profile photo.
+        :param current_logo_path: The file name of the current logo, used to determine if a
+            download is necessary. If None, a download will occur if the entity has a photo.
+        :return: The file name of the new profile photo if successfully downloaded, or None if
+            no new download occurred.
+        """
         if not entity.photo or isinstance(entity.photo, ChatPhotoEmpty):
             logger.debug(f"Chat {entity.id!r} does not have a logo. Skipping")
             return None
@@ -110,15 +121,9 @@ class TelethonService:
             logger.debug(f"Logo for chat {entity.id} is up-to-date. Skipping download.")
             return None
 
-        with open(CHAT_LOGO_PATH / new_file_name, "wb") as f:
-            await self.client.download_profile_photo(entity, f)
+        await self.client.download_profile_photo(entity, target_location)
 
-        # To avoid redundant files, we remove the previous file
-        clean_old_versions(
-            path=CHAT_LOGO_PATH, prefix=current_logo_path, current_file=new_file_name
-        )
-
-        return CHAT_LOGO_PATH / new_file_name
+        return new_file_name
 
     async def promote_user(
         self, chat_id: int, telegram_user_id: int, custom_title: str

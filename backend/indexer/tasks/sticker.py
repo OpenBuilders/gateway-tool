@@ -32,16 +32,16 @@ async def get_sticker_ownership_details():
         collections_action = StickerCollectionAction(db_session=db_session)
         collections = collections_action.get_all()
         action = IndexerStickerItemAction(db_session)
-        targeted_users_ids = await action.refresh_ownerships(collections=collections)
-        if targeted_users_ids:
-            logger.info(
-                f"Found {len(targeted_users_ids)} users that should be double-checked"
-            )
-            action.redis_service.add_to_set(
-                UPDATED_STICKERS_USER_IDS, *targeted_users_ids
-            )
-        else:
-            logger.info("No affected users has been noticed. Skipping")
+        async for targeted_users_ids in action.refresh_ownerships(
+            collections=collections
+        ):
+            if targeted_users_ids:
+                logger.info(
+                    f"Found {len(targeted_users_ids)} users that should be double-checked"
+                )
+                action.redis_service.add_to_set(
+                    UPDATED_STICKERS_USER_IDS, *targeted_users_ids
+                )
 
 
 @app.task(

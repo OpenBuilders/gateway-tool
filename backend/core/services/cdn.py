@@ -16,7 +16,7 @@ class CDNService:
 
     async def upload_file(
         self,
-        file_path: Path,
+        file_path: Path | str,
         object_name: str,
         callback: Callable[[None], None] | None = None,
     ) -> None:

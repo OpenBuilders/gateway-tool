@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 3000",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:development": "NODE_ENV=development vite build --mode development",
     "preview": "vite preview"
   },
   "dependencies": {

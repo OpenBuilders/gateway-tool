@@ -1,5 +1,5 @@
 import logging
-from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from pytonapi.schema.jettons import JettonInfo
 from sqlalchemy.exc import NoResultFound
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from core.dtos.resource import JettonDTO
 from core.actions.base import BaseAction
-from core.constants import JETTON_LOGO_SUB_PATH, DEFAULT_EXPIRY_TIMEOUT_MINUTES
+from core.constants import DEFAULT_EXPIRY_TIMEOUT_MINUTES
 from core.services.cdn import CDNService
 from core.services.jetton import JettonService
 from core.services.superredis import RedisService
@@ -67,9 +67,7 @@ class JettonAction(BaseAction):
             jetton_info, logo_path = await self._get_blockchain_info(
                 address_raw=address_raw
             )
-            dto = JettonDTO.from_info(
-                jetton_info, logo_path.name if logo_path else None
-            )
+            dto = JettonDTO.from_info(jetton_info, logo_path)
             logger.info("Caching jetton info for %s", address_raw)
             self.redis_service.set(
                 self._get_resource_cache_key(address_raw),
@@ -80,18 +78,22 @@ class JettonAction(BaseAction):
 
     async def _get_blockchain_info(
         self, address_raw: str
-    ) -> tuple[JettonInfo, Path | None]:
+    ) -> tuple[JettonInfo, str | None]:
         """
-        Retrieves blockchain information for a given address including jetton metadata and
-        downloads an associated logo if available. The metadata information is fetched from
-        the blockchain service based on the provided address, while the logo is downloaded
-        and uploaded to the CDN service if it exists.
+        Retrieve jetton information and handle logo upload.
 
-        :param address_raw: Raw string representation of the blockchain address to retrieve
-            the information for.
-        :return: A tuple containing the jetton metadata information and the local path
-            of the downloaded logo, if applicable. The logo path will be None if no logo
-            exists for the jetton.
+        This function interacts with the blockchain service to retrieve jetton-related
+        information such as metadata and image/logo. If a jetton logo is found, it
+        downloads the logo and uploads it using the CDN service to make it accessible
+        through a specific path. The resulting jetton information and the optional
+        uploaded logo path are returned.
+
+        :param address_raw: A raw string representing the blockchain address of the
+            jetton, used to retrieve its associated information.
+        :return: A tuple containing two elements:
+            - An instance of JettonInfo with the retrieved metadata about the jetton.
+            - A path to the uploaded logo file, or None if no logo was found or upload
+              failed.
         """
         jetton_info: JettonInfo = await self.blockchain_service.get_jetton_info(
             address_raw
@@ -101,13 +103,16 @@ class JettonAction(BaseAction):
 
         logo_path = None
         if jetton_logo:
-            logo_path = download_media(
-                jetton_logo, subdirectory=JETTON_LOGO_SUB_PATH, name=address_raw
-            )
-            if logo_path:
-                await self.cdn_service.upload_file(
-                    file_path=logo_path, object_name=logo_path.name
+            with NamedTemporaryFile(mode="w+b", delete=True) as tmp_file:
+                file_extension = download_media(
+                    jetton_logo,
+                    target_location=tmp_file,
                 )
+                if file_extension:
+                    logo_path = f"{address_raw}.{file_extension}"
+                    await self.cdn_service.upload_file(
+                        file_path=tmp_file.name, object_name=logo_path
+                    )
 
         return jetton_info, logo_path
 

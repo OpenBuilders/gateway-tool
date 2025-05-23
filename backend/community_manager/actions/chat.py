@@ -10,7 +10,7 @@ from core.constants import UPDATED_WALLETS_SET_NAME, UPDATED_STICKERS_USER_IDS
 from core.services.chat.rule.sticker import TelegramChatStickerCollectionService
 from core.services.chat.user import TelegramChatUserService
 from core.services.superredis import RedisService
-
+from core.services.user import UserService
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 class CommunityManagerChatAction:
     def __init__(self, db_session: Session):
         self.db_session = db_session
+        self.user_service = UserService(db_session)
         self.telegram_chat_user_service = TelegramChatUserService(db_session)
         self.telegram_chat_sticker_collection_service = (
             TelegramChatStickerCollectionService(db_session)
@@ -26,7 +27,7 @@ class CommunityManagerChatAction:
 
     def get_updated_chat_members(self) -> TargetChatMembersDTO:
         """
-        Fetches and updates the target chat members based on specific criteria including
+        Fetches and updates the target chat members based on specific criteria, including
         linked wallets and sticker owners. The method retrieves updated wallet addresses
         and sticker owner IDs from the Redis service, identifies relevant chat members
         from the Telegram chat services, and compiles the processed data into a
@@ -44,16 +45,16 @@ class CommunityManagerChatAction:
         if isinstance(wallets, str):
             wallets = [wallets]
 
-        sticker_owners_ids = (
+        sticker_owners_telegram_ids = (
             self.redis_service.pop_from_set(
                 name=UPDATED_STICKERS_USER_IDS,
                 count=community_manager_settings.items_per_task,
             )
             or []
         )
-        if isinstance(sticker_owners_ids, str):
-            sticker_owners_ids = [sticker_owners_ids]
-            sticker_owners_ids = set(map(int, sticker_owners_ids))
+        if isinstance(sticker_owners_telegram_ids, str):
+            sticker_owners_telegram_ids = [sticker_owners_telegram_ids]
+            sticker_owners_telegram_ids = set(map(int, sticker_owners_telegram_ids))
 
         target_chat_members: set[tuple[int, int]] = set()
 
@@ -65,22 +66,27 @@ class CommunityManagerChatAction:
                 {(cm.chat_id, cm.user_id) for cm in chat_members}
             )
 
-        if sticker_owners_ids:
+        if sticker_owners_telegram_ids:
             rules = self.telegram_chat_sticker_collection_service.get_all(
                 enabled_only=True
             )
             unique_chat_ids = {r.chat_id for r in rules}
+            users = self.user_service.get_all(telegram_ids=sticker_owners_telegram_ids)
+            chat_members = self.telegram_chat_user_service.get_all(
+                user_ids=[user.id for user in users],
+                chat_ids=list(unique_chat_ids),
+                with_wallet_details=False,
+            )
             target_chat_members.update(
                 {
-                    (chat_id, user_id)
-                    for chat_id in unique_chat_ids
-                    for user_id in sticker_owners_ids
+                    (chat_member.chat_id, chat_member.user_id)
+                    for chat_member in chat_members
                 }
             )
 
         return TargetChatMembersDTO(
             wallets=wallets,
-            sticker_owners_ids=sticker_owners_ids,
+            sticker_owners_ids=sticker_owners_telegram_ids,
             target_chat_members=target_chat_members,
         )
 

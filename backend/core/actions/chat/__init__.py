@@ -1,5 +1,5 @@
 import logging
-from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import sqlalchemy
 from fastapi import HTTPException
@@ -198,7 +198,7 @@ class TelegramChatAction(BaseAction):
         self,
         chat: ChatPeerType,
         current_logo_path: str | None,
-    ) -> Path | None:
+    ) -> str | None:
         """
         Fetches the profile photo of a chat and uploads it for hosting. This function
         handles the download of the profile photo from the given chat and then pushes
@@ -209,17 +209,21 @@ class TelegramChatAction(BaseAction):
         :param current_logo_path: The current logo path in the database.
         :return: The local path of the fetched profile photo or None
         """
-        logo_path = await self.telethon_service.download_profile_photo(
-            entity=chat,
-            current_logo_path=current_logo_path,
-        )
-        if logo_path:
-            await self.cdn_service.upload_file(
-                file_path=logo_path,
-                object_name=logo_path.name,
+        with NamedTemporaryFile(suffix=".png", mode="w+b", delete=True) as f:
+            logo_path = await self.telethon_service.download_profile_photo(
+                entity=chat,
+                target_location=f,
+                current_logo_path=current_logo_path,
             )
-            logger.info(f"New profile photo for chat {chat.id!r} uploaded")
-        return logo_path
+            if logo_path:
+                await self.cdn_service.upload_file(
+                    file_path=f.name,
+                    object_name=logo_path,
+                )
+                logger.info(f"New profile photo for chat {chat.id!r} uploaded")
+                return logo_path
+
+        return None
 
     async def _create(
         self, chat: ChatPeerType, sufficient_bot_privileges: bool = False
@@ -245,7 +249,7 @@ class TelegramChatAction(BaseAction):
             telegram_chat = self.telegram_chat_service.create(
                 chat_id=chat_id,
                 entity=chat,
-                logo_path=logo_path.name if logo_path else None,
+                logo_path=logo_path,
             )
             return TelegramChatDTO.from_object(
                 obj=telegram_chat, insufficient_privileges=not sufficient_bot_privileges
@@ -361,7 +365,7 @@ class TelegramChatAction(BaseAction):
             entity=chat_entity,
             # If a new logo was downloaded - use it,
             #  otherwise fallback to the current one
-            logo_path=logo_path.name if logo_path else chat.logo_path,
+            logo_path=logo_path or chat.logo_path,
         )
         await self.index(chat_entity)
         logger.info(f"Chat {chat.id!r} refreshed successfully")

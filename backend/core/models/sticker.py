@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, ForeignKey, UniqueConstraint
+from sqlalchemy import String, Integer, ForeignKey, UniqueConstraint, BigInteger
 from sqlalchemy.orm import mapped_column, relationship
 
 from core.db import Base
@@ -54,7 +54,7 @@ class StickerItem(Base):
         ForeignKey("sticker_character.id", ondelete="CASCADE"),
     )
     instance = mapped_column(Integer, nullable=False)
-    user_id = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    telegram_user_id = mapped_column(BigInteger, index=True, nullable=False)
 
     collection = relationship(
         "StickerCollection",
@@ -63,11 +63,6 @@ class StickerItem(Base):
     )
     character = relationship(
         "StickerCharacter",
-        backref="stickers",
-        lazy="joined",
-    )
-    user = relationship(
-        "User",
         backref="stickers",
         lazy="joined",
     )

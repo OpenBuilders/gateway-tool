@@ -50,10 +50,10 @@ async def handle_chat_action(event: events.ChatAction.Event):
             )
             if logo_path:
                 logger.debug(
-                    f"Updating logo for chat {event.chat_id!r} with path {logo_path.name!r}..."
+                    f"Updating logo for chat {event.chat_id!r} with path {logo_path!r}..."
                 )
                 telegram_chat_service.set_logo(
-                    chat_id=event.chat_id, logo_path=logo_path.name
+                    chat_id=event.chat_id, logo_path=logo_path
                 )
             else:
                 logger.warning(

@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from telethon import TelegramClient, events
 from telethon.sessions import SQLiteSession
@@ -8,6 +9,7 @@ from community_manager.handlers.chat import (
     handle_chat_action,
     handle_chat_participant_update,
 )
+from core.utils.probe import start_health_check_server
 from community_manager.settings import community_manager_settings
 from core.services.supertelethon import TelethonService
 from core.utils.events import ChatJoinRequestEventBuilder, ChatAdminChangeEventBuilder
@@ -40,6 +42,14 @@ def main():
     logger.info("Community Manager started.")
     telethon_service = init_client()
     telethon_service = add_event_handlers(telethon_service)
+
+    health_thread = threading.Thread(
+        target=start_health_check_server,
+        args=(lambda: telethon_service.client.is_connected(),),
+        daemon=True,
+    )
+    health_thread.start()
+
     telethon_service.start_sync()
     telethon_service.client.run_until_disconnected()
 

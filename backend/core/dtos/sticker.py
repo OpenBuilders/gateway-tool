@@ -85,7 +85,7 @@ class BaseStickerItemDTO(BaseModel):
     collection_id: int
     character_id: int
     instance: int
-    user_id: int
+    telegram_user_id: int
 
 
 class StickerItemDTO(BaseStickerItemDTO):
@@ -96,7 +96,7 @@ class StickerItemDTO(BaseStickerItemDTO):
             collection_id=obj.collection_id,
             character_id=obj.character_id,
             instance=obj.instance,
-            user_id=obj.user_id,
+            telegram_user_id=obj.telegram_user_id,
         )
 
 
@@ -130,7 +130,7 @@ class ExternalStickerDomCollectionOwnershipDTO(BaseStickerDomCollectionOwnership
                 id=f"{collection_id}_{character_id}_{instance_id}_{user_id}",
                 collection_id=collection_id,
                 character_id=character_id,
-                user_id=user_id,
+                telegram_user_id=user_id,
                 instance=instance_id,
             )
             for character_id, instances_per_user in json_data["data"].items()

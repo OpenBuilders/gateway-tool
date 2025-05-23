@@ -15,17 +15,6 @@ COPY frontend/ .
 
 FROM base as development
 
-EXPOSE 3000
+EXPOSE 5173
 
 CMD ["yarn", "run", "dev"]
-
-
-FROM base AS production
-# Build the application
-RUN yarn build
-
-# Expose the port Vite preview uses
-EXPOSE 4173
-
-# Use Vite's production-ready preview server
-CMD ["yarn", "preview"]

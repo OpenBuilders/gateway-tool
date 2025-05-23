@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from fastapi import HTTPException
 from pytonapi.schema.nft import NftCollection
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from core.dtos.resource import NftCollectionDTO
 from core.actions.base import BaseAction
-from core.constants import NFT_LOGO_SUB_PATH, DEFAULT_EXPIRY_TIMEOUT_MINUTES
+from core.constants import DEFAULT_EXPIRY_TIMEOUT_MINUTES
 from core.services.cdn import CDNService
 from core.services.nft import NftCollectionService
 from core.services.superredis import RedisService
@@ -70,9 +70,7 @@ class NftCollectionAction(BaseAction):
             jetton_info, logo_path = await self._get_blockchain_info(
                 address_raw=address_raw
             )
-            dto = NftCollectionDTO.from_info(
-                jetton_info, logo_path.name if logo_path else None
-            )
+            dto = NftCollectionDTO.from_info(jetton_info, logo_path)
             logger.info("Caching nft collection info for %s", address_raw)
             self.redis_service.set(
                 self._get_resource_cache_key(address_raw),
@@ -83,18 +81,14 @@ class NftCollectionAction(BaseAction):
 
     async def _get_blockchain_info(
         self, address_raw: str
-    ) -> tuple[NftCollection, Path | None]:
+    ) -> tuple[NftCollection, str | None]:
         """
-        Fetches and processes blockchain-related information for a given NFT collection.
+        Fetches blockchain information for a given address, including NFT collection details
+        and optionally a download URL for a logo if available.
+        If URL is available, it tries to download the logo and upload it to CDN.
 
-        The function interacts with a blockchain service to retrieve details about a specific
-        NFT collection using its address. Additionally, it attempts to download the best
-        available preview logo, if provided, storing it in a local directory.
-
-        :param address_raw: The raw address of the NFT collection to fetch data for.
-        :return: A tuple where the first element is an NftCollection object containing
-            details about the NFT collection, and the second element is a Path object or
-            None representing the filepath to the downloaded logo, if applicable.
+        :param address_raw: The raw address string to retrieve blockchain data for.
+        :return: A tuple containing the NFT collection data and an optional path to the logo file.
         """
         nft_collection_data = await self.blockchain_service.get_nft_collection_info(
             address_raw
@@ -103,13 +97,13 @@ class NftCollectionAction(BaseAction):
         if nft_collection_data.previews:
             best_preview = pick_best_preview(nft_collection_data.previews)
             download_url = best_preview.url
-            logo_path = download_media(
-                download_url, name=address_raw, subdirectory=NFT_LOGO_SUB_PATH
-            )
-            if logo_path:
-                await self.cdn_service.upload_file(
-                    file_path=logo_path, object_name=logo_path.name
-                )
+            with NamedTemporaryFile(mode="w+b", delete=True) as tmp_file:
+                file_extension = download_media(download_url, tmp_file)
+                if file_extension:
+                    logo_path = f"{address_raw}.{file_extension}"
+                    await self.cdn_service.upload_file(
+                        file_path=tmp_file.name, object_name=logo_path
+                    )
 
         return nft_collection_data, logo_path
 

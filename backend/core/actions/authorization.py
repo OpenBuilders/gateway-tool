@@ -132,7 +132,9 @@ class AuthorizationAction(BaseAction):
                 )
 
         sticker_item_service = StickerItemService(self.db_session)
-        user_sticker_items = sticker_item_service.get_all(user_id=user.id)
+        user_sticker_items = sticker_item_service.get_all(
+            telegram_user_id=user.telegram_id
+        )
 
         eligibility_summary = self.check_chat_member_eligibility(
             eligibility_rules=eligibility_rules,
@@ -199,6 +201,7 @@ class AuthorizationAction(BaseAction):
         :return: list of ineligible chat members
         """
         members_per_chat = defaultdict(list)
+        user_id_to_telegram_id = {}
         eligibility_rules_per_chat: dict[int, TelegramChatEligibilityRulesDTO] = {}
         for chat_member in chat_members:
             # Skip checks for non-managed users in the chats where
@@ -209,6 +212,7 @@ class AuthorizationAction(BaseAction):
             eligibility_rules_per_chat[
                 chat_member.chat_id
             ] = self.get_eligibility_rules(chat_id=chat_member.chat_id)
+            user_id_to_telegram_id[chat_member.user_id] = chat_member.user.telegram_id
 
         nft_item_service = NftItemService(self.db_session)
 
@@ -237,7 +241,7 @@ class AuthorizationAction(BaseAction):
             # Users could be repeated if one user has multiple wallets connected
             if user_id not in sticker_items_per_user:
                 sticker_items_per_user[user_id] = sticker_item_service.get_all(
-                    user_id=user_id
+                    telegram_user_id=user_id_to_telegram_id[user_id]
                 )
 
         ineligible_members = []

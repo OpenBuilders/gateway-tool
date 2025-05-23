@@ -3,11 +3,17 @@ import { useAppNavigation } from '@hooks'
 import { ROUTES_NAME } from '@routes'
 import { toUserFriendlyAddress, useTonConnectUI } from '@tonconnect/ui-react'
 import { collapseAddress } from '@utils'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 
-import { useChat, useChatActions, useUserActions, WalletData } from '@store'
+import {
+  useChat,
+  useChatActions,
+  useUser,
+  useUserActions,
+  WalletData,
+} from '@store'
 
 export const WalletCondition = () => {
   const { appNavigate } = useAppNavigation()
@@ -17,6 +23,8 @@ export const WalletCondition = () => {
 
   const { showToast } = useToast()
 
+  const { user } = useUser()
+
   const { chatWallet } = useChat()
   const { fetchUserChatAction } = useChatActions()
   const { connectWalletAction, completeChatTaskAction } = useUserActions()
@@ -25,6 +33,8 @@ export const WalletCondition = () => {
   const connectWalletQuery = searchParams.get('connectWallet')
 
   const [tonConnectUI] = useTonConnectUI()
+
+  const processedWallets = useRef(new Set<string>())
 
   const fetchUserChat = async () => {
     try {
@@ -48,6 +58,11 @@ export const WalletCondition = () => {
     let taskId = null
     try {
       taskId = await connectWalletAction(chatSlugParam, walletData)
+
+      showToast({
+        message: 'New wallet connected',
+        type: 'success',
+      })
     } catch (error) {
       console.error(error)
       showToast({
@@ -84,8 +99,11 @@ export const WalletCondition = () => {
     tonConnectUI.onStatusChange(async (wallet) => {
       if (
         wallet?.connectItems?.tonProof &&
-        'proof' in wallet.connectItems.tonProof
+        'proof' in wallet.connectItems.tonProof &&
+        !processedWallets.current.has(wallet.account.address)
       ) {
+        processedWallets.current.add(wallet.account.address)
+
         const data = {
           tonProof: wallet.connectItems.tonProof.proof,
           walletAddress: wallet.account.address,
@@ -96,13 +114,16 @@ export const WalletCondition = () => {
           await handleCompleteTask(taskId)
         }
 
-        showToast({
-          message: 'New wallet connected',
-          type: 'success',
-        })
+        await fetchUserChat()
       }
     })
   }, [tonConnectUI])
+
+  useEffect(() => {
+    return () => {
+      processedWallets.current.clear()
+    }
+  }, [])
 
   useEffect(() => {
     if (connectWalletQuery) {
@@ -115,11 +136,23 @@ export const WalletCondition = () => {
     }
   }, [connectWalletQuery])
 
+  const handleWalletsList = () => {
+    if (user?.wallets.length) {
+      appNavigate({
+        path: ROUTES_NAME.CLIENT_WALLETS_LIST,
+        params: { clientChatSlug: chatSlugParam },
+      })
+      return
+    }
+
+    handleOpenWalletConnect()
+  }
+
   if (!chatWallet) {
     return (
       <ListItem
         chevron
-        onClick={handleOpenWalletConnect}
+        onClick={handleWalletsList}
         before={<Icon name="cross" size={24} />}
         text={
           <Text type="text" color="primary">

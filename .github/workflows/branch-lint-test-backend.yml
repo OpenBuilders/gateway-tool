@@ -2,8 +2,6 @@ name: BE lint & test
 
 on:
   push:
-    branches-ignore:
-      - main
     paths:
       - 'backend/**'
 

@@ -6,11 +6,12 @@ DEFAULT_EXPIRY_TIMEOUT_MINUTES = 30
 
 DEFAULT_WALLET_BALANCE = 0
 
-CUSTOM_TITLE_TEMPLATE = "Whale #{rank}"
-
 DEFAULT_WALLET_TRACK_EXPIRATION = 60 * 60 * 24 * 365 * 10  # 10 years
 
 ASYNC_TASK_REDIS_PREFIX = "atask"
+
+# Performance
+DEFAULT_BATCH_PROCESSING_SIZE = 5_000
 
 # Privileges required for admin to manage the chat in the bot
 REQUIRED_ADMIN_PRIVILEGES = ["add_admins"]
@@ -33,16 +34,6 @@ PROJECT_ROOT = PACKAGE_ROOT.parent
 # ---------------- Static files ----------------
 STATIC_PATH = PACKAGE_ROOT / "static"
 CERTS_PATH = PACKAGE_ROOT.parent.parent / "config" / "certs"
-# Jettons
-JETTON_LOGO_SUB_PATH = "jettons"
-# NFTs
-NFT_LOGO_SUB_PATH = "nfts"
-# Chats
-CHAT_LOGO_SUB_PATH = "chats"
-CHAT_LOGO_PATH = STATIC_PATH / CHAT_LOGO_SUB_PATH
-# Avatars
-AVATAR_SUB_PATH = "avatars"
-
 # ----------------- Requests -----------------
 REQUEST_TIMEOUT = 30
 CONNECT_TIMEOUT = 10
