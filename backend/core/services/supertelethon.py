@@ -30,6 +30,7 @@ from telethon.tl.types import (
     Document,
     DocumentAttributeCustomEmoji,
     StickerSet,
+    DocumentAttributeFilename,
 )
 from telethon.tl.types.payments import SavedStarGifts
 
@@ -229,6 +230,24 @@ class TelethonService:
         )
         return f"{entity.slug}-preview.png"
 
+    async def download_emoji(
+        self,
+        emoji: Document,
+        target_location: BinaryIO | IO[bytes],
+    ) -> str:
+        """
+        Download the emoji document and save it to the specified location.
+        """
+        filename = next(
+            filter(lambda a: isinstance(a, DocumentAttributeFilename), emoji.attributes)
+        ).file_name
+        suffix = Path(filename).suffix
+        await self.client.download_media(
+            message=emoji,
+            file=target_location,  # type: ignore
+        )
+        return f"{emoji.id}{suffix}"
+
     async def promote_user(
         self, chat_id: int, telegram_user_id: int, custom_title: str
     ) -> None:
@@ -317,7 +336,10 @@ class TelethonService:
         sticker_set = await self.client(
             GetStickerSetRequest(stickerset=sticker_set_input, hash=0)
         )
-        return emoji, sticker_set
+        logger.info(
+            f"Indexed emoji {emoji.id!r} and sticker set {sticker_set.set.id!r}."
+        )
+        return emoji, sticker_set.set
 
     async def index_gift(self, slug: str, number: int) -> StarGiftUnique:
         """

@@ -45,6 +45,7 @@ class TelegramChatEmoji(Base):
         nullable=False,
     )
     emoji_id = mapped_column(String(255), nullable=False)
+    logo_url = mapped_column(String(255), nullable=True)
     is_enabled = mapped_column(Boolean, nullable=False, default=False)
     created_at = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

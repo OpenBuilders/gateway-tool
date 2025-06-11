@@ -15,7 +15,7 @@ class EmojiChatEligibilityRuleDTO(ChatEligibilityRuleDTO):
             type=EligibilityCheckType.EMOJI,
             title=obj.emoji_id,
             expected=1,
-            photo_url=None,
+            photo_url=obj.logo_url,
             blockchain_address=None,
             is_enabled=obj.is_enabled,
             emoji_id=obj.emoji_id,

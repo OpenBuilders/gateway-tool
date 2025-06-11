@@ -58,11 +58,8 @@ async def add_emoji_rule(
         chat_slug=slug,
         db_session=db_session,
     )
-    return EmojiChatEligibilityRuleFDO.model_validate(
-        action.create(
-            emoji_id=rule.emoji_id,
-        ).model_dump()
-    )
+    result = await action.create(emoji_id=rule.emoji_id)
+    return EmojiChatEligibilityRuleFDO.model_validate(result.model_dump())
 
 
 @manage_emoji_rules_router.put(
@@ -87,11 +84,10 @@ async def update_emoji_rule(
         chat_slug=slug,
         db_session=db_session,
     )
-    return EmojiChatEligibilityRuleFDO.model_validate(
-        action.update(
-            rule_id=rule_id, emoji_id=rule.emoji_id, is_enabled=rule.is_enabled
-        ).model_dump()
+    result = await action.update(
+        rule_id=rule_id, emoji_id=rule.emoji_id, is_enabled=rule.is_enabled
     )
+    return EmojiChatEligibilityRuleFDO.model_validate(result.model_dump())
 
 
 @manage_emoji_rules_router.delete(

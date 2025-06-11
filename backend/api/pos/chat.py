@@ -249,7 +249,7 @@ class TelegramChatPremiumRuleCPO(BaseFDO):
 
 class TelegramChatEmojiRuleCPO(BaseFDO):
     is_enabled: bool
-    emoji_id: str
+    emoji_id: int
 
 
 class ChatEligibilityRuleFDO(BaseFDO, ChatEligibilityRuleDTO):
@@ -300,7 +300,7 @@ class GiftChatEligibilitySummaryFDO(BaseFDO, GiftChatEligibilitySummaryDTO):
 
 
 class EmojiChatEligibilityRuleFDO(BaseFDO, EmojiChatEligibilityRuleDTO):
-    ...
+    photo_url: CDNImageField
 
 
 class EmojiChatEligibilitySummaryFDO(BaseFDO, EmojiChatEligibilitySummaryDTO):

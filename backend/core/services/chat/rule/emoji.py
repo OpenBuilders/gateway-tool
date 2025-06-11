@@ -32,23 +32,30 @@ class TelegramChatEmojiService(BaseService):
             > 0
         )
 
-    def create(self, chat_id: int, emoji_id: str) -> TelegramChatEmoji:
+    def create(
+        self, chat_id: int, emoji_id: int, logo_url: str | None
+    ) -> TelegramChatEmoji:
         if self.exists(chat_id):
             raise TelegramChatRuleExists(
                 "Telegram Chat rule of that type for that chat already exists."
             )
         new_rule = TelegramChatEmoji(
-            chat_id=chat_id, emoji_id=emoji_id, is_enabled=True
+            chat_id=chat_id, emoji_id=str(emoji_id), is_enabled=True, logo_url=logo_url
         )
         self.db_session.add(new_rule)
         self.db_session.commit()
         return new_rule
 
     def update(
-        self, rule: TelegramChatEmoji, emoji_id: str, is_enabled: bool
+        self,
+        rule: TelegramChatEmoji,
+        emoji_id: int,
+        is_enabled: bool,
+        logo_url: str | None,
     ) -> TelegramChatEmoji:
         rule.emoji_id = emoji_id
         rule.is_enabled = is_enabled
+        rule.logo_url = logo_url
         self.db_session.commit()
         return rule
 
