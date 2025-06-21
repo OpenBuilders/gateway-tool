@@ -1,14 +1,16 @@
 import logging
 
 from fastapi import HTTPException
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, IntegrityError
 from sqlalchemy.orm import Session
 from starlette.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND
 
 from core.actions.base import BaseAction
+from core.exceptions.rule import TelegramChatRuleNotFound
 from core.models.user import User
 from core.models.chat import TelegramChat
 from core.services.chat import TelegramChatService
+from core.services.chat.rule.group import TelegramChatRuleGroupService
 from core.services.chat.user import TelegramChatUserService
 
 
@@ -25,6 +27,7 @@ class ManagedChatBaseAction(BaseAction):
         super().__init__(db_session)
         self.telegram_chat_service = TelegramChatService(db_session)
         self.telegram_chat_user_service = TelegramChatUserService(db_session)
+        self.telegram_chat_rule_group_service = TelegramChatRuleGroupService(db_session)
 
         self._chat = self.__get_target_chat(requestor=requestor, chat_slug=chat_slug)
 
@@ -63,3 +66,24 @@ class ManagedChatBaseAction(BaseAction):
     @property
     def chat(self) -> TelegramChat:
         return self._chat
+
+    def resolve_group_id(self, chat_id: int, group_id: int | None) -> int:
+        if group_id is not None:
+            try:
+                self.telegram_chat_rule_group_service.get(
+                    chat_id=chat_id, group_id=group_id
+                )
+                return group_id
+            except IntegrityError as e:
+                raise TelegramChatRuleNotFound(
+                    f"No group with ID {group_id!r} found for chat {chat_id!r}."
+                ) from e
+
+        try:
+            return self.telegram_chat_rule_group_service.get_default_for_chat(
+                self.chat.id
+            ).id
+        except ValueError:
+            raise TelegramChatRuleNotFound(
+                f"No default group found for chat {chat_id!r}."
+            )

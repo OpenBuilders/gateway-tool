@@ -40,6 +40,7 @@ async def add_chat_nft_collection_rule(
         chat_slug=slug,
     )
     chat_nft_collection_rule = await action.create(
+        group_id=rule.group_id,
         address_raw=rule.address,
         threshold=rule.expected,
         category=rule.category,

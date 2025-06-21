@@ -38,6 +38,7 @@ async def add_chat_gift_rule(
         chat_slug=slug,
     )
     new_rule = await action.create(
+        group_id=rule.group_id,
         collection_slug=rule.collection_slug,
         model=rule.model,
         backdrop=rule.backdrop,

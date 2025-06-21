@@ -1,16 +1,22 @@
 import logging
 
+from fastapi import HTTPException
 from httpx import HTTPError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.status import HTTP_404_NOT_FOUND
 
 from core.actions.authorization import AuthorizationAction
 from core.actions.base import BaseAction
 from core.actions.chat.base import ManagedChatBaseAction
-from core.dtos.chat.rules.whitelist import (
+from core.dtos.chat.rule.whitelist import (
     WhitelistRuleItemsDifferenceDTO,
     WhitelistRuleDTO,
     WhitelistRuleExternalDTO,
+    CreateTelegramChatWhitelistExternalSourceDTO,
+    UpdateTelegramChatWhitelistExternalSourceDTO,
+    CreateTelegramChatWhitelistDTO,
+    UpdateTelegramChatWhitelistDTO,
 )
 from core.exceptions.rule import TelegramChatRuleExists
 from core.models.rule import TelegramChatWhitelistExternalSource
@@ -126,12 +132,13 @@ class TelegramChatWhitelistExternalSourceAction(ManagedChatBaseAction):
 
     def get(self, rule_id: int) -> WhitelistRuleExternalDTO:
         external_source = self.telegram_chat_external_source_service.get(
-            chat_id=self.chat.id, rule_id=rule_id
+            chat_id=self.chat.id, id_=rule_id
         )
         return WhitelistRuleExternalDTO.from_orm(external_source)
 
     async def create(
         self,
+        group_id: int | None,
         external_source_url: str,
         name: str,
         description: str | None,
@@ -142,6 +149,7 @@ class TelegramChatWhitelistExternalSourceAction(ManagedChatBaseAction):
         Creates a new external source for a chat and validates it. If validation fails, rolls
         back the database transaction.
 
+        :param group_id: The identifier of the group to which the external source belongs.
         :param external_source_url: The URL of the external source to be added.
         :param name: The name of the external source.
         :param description: An optional description of the external source.
@@ -151,14 +159,20 @@ class TelegramChatWhitelistExternalSourceAction(ManagedChatBaseAction):
 
         :raises TelegramChatInvalidExternalSourceError: If the external source is invalid.
         """
+        group_id = self.resolve_group_id(chat_id=self.chat.id, group_id=group_id)
+
         try:
             external_source = self.telegram_chat_external_source_service.create(
-                chat_id=self.chat.id,
-                external_source_url=external_source_url,
-                name=name,
-                description=description,
-                auth_key=auth_key,
-                auth_value=auth_value,
+                CreateTelegramChatWhitelistExternalSourceDTO(
+                    chat_id=self.chat.id,
+                    group_id=group_id,
+                    external_source_url=external_source_url,
+                    name=name,
+                    description=description,
+                    auth_key=auth_key,
+                    auth_value=auth_value,
+                    is_enabled=True,
+                ),
             )
         except IntegrityError as e:
             message = f"External source rule already exists for chat {self.chat.id!r} with url {external_source_url!r}. "
@@ -208,15 +222,25 @@ class TelegramChatWhitelistExternalSourceAction(ManagedChatBaseAction):
 
         :raises TelegramChatInvalidExternalSourceError: If the external source is invalid.
         """
+        try:
+            rule = self.telegram_chat_external_source_service.get(
+                chat_id=self.chat.id, id_=rule_id
+            )
+        except IntegrityError as e:
+            message = f"External source rule {rule_id!r} does not exist for chat {self.chat.id!r}. "
+            logger.warning(message, exc_info=e)
+            raise HTTPException(detail=message, status_code=HTTP_404_NOT_FOUND) from e
+
         external_source = self.telegram_chat_external_source_service.update(
-            chat_id=self.chat.id,
-            rule_id=rule_id,
-            external_source_url=external_source_url,
-            name=name,
-            description=description,
-            auth_key=auth_key,
-            auth_value=auth_value,
-            is_enabled=is_enabled,
+            rule=rule,
+            dto=UpdateTelegramChatWhitelistExternalSourceDTO(
+                external_source_url=external_source_url,
+                name=name,
+                description=description,
+                auth_key=auth_key,
+                auth_value=auth_value,
+                is_enabled=is_enabled,
+            ),
         )
         if is_enabled:
             # No need for a manual commit, as it's already done in the service during set_content
@@ -254,15 +278,23 @@ class TelegramChatWhitelistAction(ManagedChatBaseAction):
 
     def get(self, rule_id: int) -> WhitelistRuleDTO:
         whitelist = self.telegram_chat_whitelist_service.get(
-            chat_id=self.chat.id, rule_id=rule_id
+            chat_id=self.chat.id, id_=rule_id
         )
         return WhitelistRuleDTO.from_orm(whitelist)
 
-    def create(self, name: str, description: str | None = None) -> WhitelistRuleDTO:
+    def create(
+        self, group_id: int | None, name: str, description: str | None = None
+    ) -> WhitelistRuleDTO:
+        group_id = self.resolve_group_id(chat_id=self.chat.id, group_id=group_id)
+
         whitelist = self.telegram_chat_whitelist_service.create(
-            chat_id=self.chat.id,
-            name=name,
-            description=description,
+            CreateTelegramChatWhitelistDTO(
+                group_id=group_id,
+                name=name,
+                description=description,
+                is_enabled=True,
+                chat_id=self.chat.id,
+            ),
         )
         logger.info(f"Whitelist {whitelist.id!r} created successfully")
         return WhitelistRuleDTO.from_orm(whitelist)
@@ -270,12 +302,24 @@ class TelegramChatWhitelistAction(ManagedChatBaseAction):
     def update(
         self, rule_id: int, name: str, description: str | None, is_enabled: bool
     ) -> WhitelistRuleDTO:
+        try:
+            rule = self.telegram_chat_whitelist_service.get(
+                chat_id=self.chat.id, id_=rule_id
+            )
+        except IntegrityError as e:
+            message = (
+                f"Whitelist rule {rule_id!r} does not exist for chat {self.chat.id!r}. "
+            )
+            logger.warning(message, exc_info=e)
+            raise HTTPException(detail=message, status_code=HTTP_404_NOT_FOUND) from e
+
         whitelist = self.telegram_chat_whitelist_service.update(
-            chat_id=self.chat.id,
-            rule_id=rule_id,
-            name=name,
-            description=description,
-            is_enabled=is_enabled,
+            rule=rule,
+            dto=UpdateTelegramChatWhitelistDTO(
+                name=name,
+                description=description,
+                is_enabled=is_enabled,
+            ),
         )
         logger.info(f"Whitelist {rule_id!r} updated successfully")
         return WhitelistRuleDTO.from_orm(whitelist)
@@ -302,7 +346,7 @@ class TelegramChatWhitelistAction(ManagedChatBaseAction):
             has been successfully executed.
         """
         rule = self.telegram_chat_whitelist_service.get(
-            chat_id=self.chat.id, rule_id=rule_id
+            chat_id=self.chat.id, id_=rule_id
         )
         whitelist = self.telegram_chat_whitelist_service.set_content(
             rule=rule, content=content

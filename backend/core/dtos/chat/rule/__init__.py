@@ -51,6 +51,7 @@ class TelegramChatEligibilityRulesDTO:
 
 class ChatEligibilityRuleDTO(BaseModel):
     id: int
+    group_id: int
     type: EligibilityCheckType
     title: str
     expected: int
@@ -81,6 +82,7 @@ class ChatEligibilityRuleDTO(BaseModel):
     def from_toncoin_rule(cls, rule: TelegramChatToncoin) -> Self:
         return cls(
             id=rule.id,
+            group_id=rule.group_id,
             type=EligibilityCheckType.TONCOIN,
             title="TON",
             expected=rule.threshold,
@@ -95,6 +97,7 @@ class ChatEligibilityRuleDTO(BaseModel):
     ) -> Self:
         return cls(
             id=external_rule.id,
+            group_id=external_rule.group_id,
             type=EligibilityCheckType.EXTERNAL_SOURCE,
             title=external_rule.name,
             expected=1,
@@ -107,6 +110,7 @@ class ChatEligibilityRuleDTO(BaseModel):
     def from_whitelist_rule(cls, whitelist_rule: TelegramChatWhitelist) -> Self:
         return cls(
             id=whitelist_rule.id,
+            group_id=whitelist_rule.group_id,
             type=EligibilityCheckType.WHITELIST,
             title=whitelist_rule.name,
             expected=1,
@@ -119,6 +123,7 @@ class ChatEligibilityRuleDTO(BaseModel):
     def from_premium_rule(cls, rule: TelegramChatPremium) -> Self:
         return cls(
             id=rule.id,
+            group_id=rule.group_id,
             type=EligibilityCheckType.PREMIUM,
             title="Telegram Premium",
             expected=1,
@@ -128,6 +133,12 @@ class ChatEligibilityRuleDTO(BaseModel):
         )
 
 
+class ChatEligibilityRuleGroupDTO(BaseModel):
+    id: int
+    items: list[ChatEligibilityRuleDTO]
+
+
 class TelegramChatWithRulesDTO(BaseModel):
     chat: TelegramChatDTO
+    groups: list[ChatEligibilityRuleGroupDTO]
     rules: list[ChatEligibilityRuleDTO]

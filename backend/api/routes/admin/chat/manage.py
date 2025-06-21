@@ -9,12 +9,14 @@ from api.pos.chat import (
     EditChatCPO,
     ChatVisibilityCPO,
 )
+from api.routes.admin.chat.group import manage_rule_group_router
 from api.routes.admin.chat.rule import manage_rules_router
 from core.actions.chat import TelegramChatManageAction
 
 
 admin_chat_manage_router = APIRouter(prefix="/{slug}", tags=["Chat management"])
 admin_chat_manage_router.include_router(manage_rules_router)
+admin_chat_manage_router.include_router(manage_rule_group_router)
 
 
 @admin_chat_manage_router.get(

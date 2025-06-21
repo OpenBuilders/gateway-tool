@@ -11,8 +11,8 @@ interface Config {
 const devConfig: Config = {
   isDev: true,
   apiHost: 'https://dev-api.access.tools.tg',
-  botName: 'not_testing_with_bugs_guide_bot',
-  botLink: 'https://t.me/not_testing_with_bugs_guide_bot',
+  botName: 'ggooccttaa_bot',
+  botLink: 'https://t.me/ggooccttaa_bot',
   tonConnectManifestUrl: 'https://cdn.joincommunity.xyz/gateway/manifest.json',
   accessToken: import.meta.env.VITE_ACCESS_TOKEN,
 }

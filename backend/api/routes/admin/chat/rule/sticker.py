@@ -38,6 +38,7 @@ async def add_chat_sticker_rule(
         chat_slug=slug,
     )
     new_rule = await action.create(
+        group_id=rule.group_id,
         collection_id=rule.collection_id,
         character_id=rule.character_id,
         category=rule.category,

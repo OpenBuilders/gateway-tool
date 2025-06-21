@@ -21,37 +21,39 @@ from core.dtos.chat import (
     TelegramChatDTO,
     TelegramChatPovDTO,
 )
-from core.dtos.chat.rules import (
+from core.dtos.chat.group import TelegramChatRuleGroupDTO
+from core.dtos.chat.rule import (
     EligibilityCheckType,
     ChatEligibilityRuleDTO,
     TelegramChatWithRulesDTO,
+    ChatEligibilityRuleGroupDTO,
 )
-from core.dtos.chat.rules.emoji import (
+from core.dtos.chat.rule.emoji import (
     EmojiChatEligibilityRuleDTO,
     EmojiChatEligibilitySummaryDTO,
 )
-from core.dtos.chat.rules.gift import (
+from core.dtos.chat.rule.gift import (
     GiftChatEligibilityRuleDTO,
     GiftChatEligibilitySummaryDTO,
 )
-from core.dtos.chat.rules.jetton import (
+from core.dtos.chat.rule.jetton import (
     JettonEligibilityRuleDTO,
     JettonEligibilitySummaryDTO,
 )
-from core.dtos.chat.rules.sticker import (
+from core.dtos.chat.rule.sticker import (
     StickerChatEligibilityRuleDTO,
     StickerChatEligibilitySummaryDTO,
 )
-from core.dtos.chat.rules.summary import (
+from core.dtos.chat.rule.summary import (
     RuleEligibilitySummaryDTO,
     TelegramChatWithEligibilitySummaryDTO,
 )
-from core.dtos.chat.rules.whitelist import (
+from core.dtos.chat.rule.whitelist import (
     WhitelistRuleDTO,
     WhitelistRuleExternalDTO,
     WhitelistRuleCPO,
 )
-from core.dtos.chat.rules.nft import NftEligibilityRuleDTO, NftRuleEligibilitySummaryDTO
+from core.dtos.chat.rule.nft import NftEligibilityRuleDTO, NftRuleEligibilitySummaryDTO
 from core.dtos.base import NftItemAttributeDTO
 from core.enums.jetton import CurrencyCategory
 from core.enums.nft import (
@@ -133,6 +135,7 @@ class BaseTelegramChatQuantityRuleCPO(BaseFDO):
             description="Optional category of the rule, e.g. NFT collection category or amount of burned items",
         ),
     ]
+    group_id: int | None = None
     is_enabled: bool = True
 
 
@@ -250,6 +253,7 @@ class TelegramChatPremiumRuleCPO(BaseFDO):
 class TelegramChatEmojiRuleCPO(BaseFDO):
     is_enabled: bool
     emoji_id: str
+    group_id: int | None = None
 
 
 class ChatEligibilityRuleFDO(BaseFDO, ChatEligibilityRuleDTO):
@@ -307,17 +311,25 @@ class EmojiChatEligibilitySummaryFDO(BaseFDO, EmojiChatEligibilitySummaryDTO):
     ...
 
 
+RuleEligibilityFDOType = (
+    ChatEligibilityRuleFDO
+    | ToncoinEligibilityRuleFDO
+    | JettonEligibilityRuleFDO
+    | NftEligibilityRuleFDO
+    | EmojiChatEligibilityRuleFDO
+    | StickerChatEligibilityRuleFDO
+    | GiftChatEligibilityRuleFDO
+)
+
+
+class ChatEligibilityRuleGroupFDO(ChatEligibilityRuleGroupDTO, BaseFDO):
+    items: list[RuleEligibilityFDOType]
+
+
 class TelegramChatWithRulesFDO(BaseFDO):
     chat: TelegramChatFDO
-    rules: list[
-        ChatEligibilityRuleFDO
-        | ToncoinEligibilityRuleFDO
-        | JettonEligibilityRuleFDO
-        | NftEligibilityRuleFDO
-        | EmojiChatEligibilityRuleFDO
-        | StickerChatEligibilityRuleFDO
-        | GiftChatEligibilityRuleFDO
-    ]
+    groups: list[ChatEligibilityRuleGroupFDO]
+    rules: list[RuleEligibilityFDOType]
 
     @classmethod
     def from_dto(cls, dto: TelegramChatWithRulesDTO) -> Self:
@@ -329,20 +341,44 @@ class TelegramChatWithRulesFDO(BaseFDO):
             EligibilityCheckType.STICKER_COLLECTION: StickerChatEligibilityRuleFDO,
             EligibilityCheckType.GIFT_COLLECTION: GiftChatEligibilityRuleFDO,
         }
+        formatted_groups = [
+            ChatEligibilityRuleGroupFDO(
+                id=group.id,
+                items=[
+                    mapping.get(rule.type, ChatEligibilityRuleFDO).model_validate(
+                        rule.model_dump()
+                    )
+                    for rule in group.items
+                ],
+            )
+            for group in dto.groups
+        ]
+
         return cls(
             chat=TelegramChatFDO.model_validate(dto.chat.model_dump()),
-            rules=[
-                mapping.get(rule.type, ChatEligibilityRuleFDO).model_validate(
-                    rule.model_dump()
-                )
-                for rule in dto.rules
-            ],
+            rules=[rule for group in formatted_groups for rule in group.items],
+            groups=formatted_groups,
         )
 
 
 class RuleEligibilitySummaryFDO(BaseFDO, RuleEligibilitySummaryDTO):
     expected: AmountFacadeField
     actual: AmountFacadeField
+
+
+RuleEligibilitySummaryFDOType = (
+    RuleEligibilitySummaryFDO
+    | JettonEligibilitySummaryFDO
+    | NftRuleEligibilitySummaryFDO
+    | EmojiChatEligibilitySummaryFDO
+    | StickerChatEligibilitySummaryFDO
+    | GiftChatEligibilitySummaryFDO
+)
+
+
+class TelegramChatWithEligibilityGroupSummaryFDO(BaseFDO):
+    id: int
+    items: list[RuleEligibilitySummaryFDOType]
 
 
 class TelegramChatWithEligibilitySummaryFDO(BaseFDO):
@@ -352,14 +388,8 @@ class TelegramChatWithEligibilitySummaryFDO(BaseFDO):
     """
 
     chat: TelegramChatPovFDO
-    rules: list[
-        RuleEligibilitySummaryFDO
-        | JettonEligibilitySummaryFDO
-        | NftRuleEligibilitySummaryFDO
-        | EmojiChatEligibilitySummaryFDO
-        | StickerChatEligibilitySummaryFDO
-        | GiftChatEligibilitySummaryFDO
-    ]
+    rules: list[RuleEligibilitySummaryFDOType]
+    groups: list[TelegramChatWithEligibilityGroupSummaryFDO]
     wallet: str | None
 
     @classmethod
@@ -371,14 +401,24 @@ class TelegramChatWithEligibilitySummaryFDO(BaseFDO):
             EligibilityCheckType.STICKER_COLLECTION: StickerChatEligibilitySummaryFDO,
             EligibilityCheckType.GIFT_COLLECTION: GiftChatEligibilitySummaryFDO,
         }
+
+        formatted_groups = [
+            TelegramChatWithEligibilityGroupSummaryFDO(
+                id=group.id,
+                items=[
+                    mapping.get(rule.type, RuleEligibilitySummaryFDO).model_validate(
+                        rule.model_dump()
+                    )
+                    for rule in group.items
+                ],
+            )
+            for group in dto.groups
+        ]
+
         return cls(
             chat=TelegramChatPovFDO.model_validate(dto.chat.model_dump()),
-            rules=[
-                mapping.get(rule.type, RuleEligibilitySummaryFDO).model_validate(
-                    rule.model_dump()
-                )
-                for rule in dto.rules
-            ],
+            groups=formatted_groups,
+            rules=[item for group in formatted_groups for item in group.items],
             wallet=dto.wallet,
         )
 
@@ -386,6 +426,7 @@ class TelegramChatWithEligibilitySummaryFDO(BaseFDO):
 class CreateWhitelistRuleBaseCPO(BaseFDO):
     name: Annotated[str, Field(min_length=1, max_length=255)]
     description: Annotated[str | None, Field(min_length=0, max_length=255)] = None
+    group_id: int | None = None
 
 
 class CreateWhitelistRuleCPO(CreateWhitelistRuleBaseCPO):
@@ -424,4 +465,8 @@ class WhitelistRuleExternalFDO(BaseFDO, WhitelistRuleExternalDTO):
 
 
 class WhitelistRuleUsersFDO(WhitelistRuleCPO):
+    ...
+
+
+class TelegramChatRuleGroupFDO(TelegramChatRuleGroupDTO, BaseFDO):
     ...

@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
-from core.dtos.chat.rules import EligibilityCheckType, ChatEligibilityRuleDTO
-from core.dtos.chat.rules.internal import EligibilitySummaryNftCollectionInternalDTO
+from core.dtos.chat.rule import EligibilityCheckType, ChatEligibilityRuleDTO
+from core.dtos.chat.rule.internal import EligibilitySummaryNftCollectionInternalDTO
 from core.models.rule import TelegramChatNFTCollection
 from core.enums.nft import NftCollectionAsset, NftCollectionCategoryType
 
@@ -16,6 +16,7 @@ class BaseTelegramChatNFTCollectionRuleDTO(BaseModel):
 
 class CreateTelegramChatNFTCollectionRuleDTO(BaseTelegramChatNFTCollectionRuleDTO):
     chat_id: int
+    group_id: int
 
 
 class UpdateTelegramChatNFTCollectionRuleDTO(BaseTelegramChatNFTCollectionRuleDTO):
@@ -29,6 +30,7 @@ class NftEligibilityRuleDTO(ChatEligibilityRuleDTO):
     def from_nft_collection_rule(cls, nft_collection_rule: TelegramChatNFTCollection):
         return cls(
             id=nft_collection_rule.id,
+            group_id=nft_collection_rule.group_id,
             type=EligibilityCheckType.NFT_COLLECTION,
             title=nft_collection_rule.asset
             or (
@@ -63,6 +65,7 @@ class NftRuleEligibilitySummaryDTO(NftEligibilityRuleDTO):
     ):
         return cls(
             id=internal_dto.id,
+            group_id=internal_dto.group_id,
             type=internal_dto.type,
             asset=internal_dto.asset,
             category=internal_dto.category,

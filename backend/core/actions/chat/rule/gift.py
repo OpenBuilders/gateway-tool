@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
 
 from core.actions.chat import ManagedChatBaseAction
-from core.dtos.chat.rules.gift import (
+from core.dtos.chat.rule.gift import (
     GiftChatEligibilityRuleDTO,
     CreateTelegramChatGiftCollectionRuleDTO,
     UpdateTelegramChatGiftCollectionRuleDTO,
@@ -35,6 +35,7 @@ class TelegramChatGiftCollectionAction(ManagedChatBaseAction):
     def check_duplicates(
         self,
         chat_id: int,
+        group_id: int,
         collection_slug: str | None,
         category: str | None,
         entity_id: int | None = None,
@@ -45,6 +46,7 @@ class TelegramChatGiftCollectionAction(ManagedChatBaseAction):
         is provided) is found.
 
         :param chat_id: The unique identifier for the chat where the rule applies.
+        :param group_id: The unique identifier for the group where the rule applies.
         :param collection_slug: The slug identifying the collection; can be None if not applicable.
         :param category: The category to which the rule applies; can be None if not applicable.
         :param entity_id: Optional identifier for the specific entity to exclude from duplicate checks.
@@ -53,6 +55,7 @@ class TelegramChatGiftCollectionAction(ManagedChatBaseAction):
         """
         existing_rules = self.service.find(
             chat_id=chat_id,
+            group_id=group_id,
             collection_slug=collection_slug,
             category=category,
         )
@@ -97,6 +100,7 @@ class TelegramChatGiftCollectionAction(ManagedChatBaseAction):
 
     async def create(
         self,
+        group_id: int | None,
         collection_slug: str | None,
         model: str | None,
         backdrop: str | None,
@@ -104,8 +108,11 @@ class TelegramChatGiftCollectionAction(ManagedChatBaseAction):
         category: None,
         threshold: int,
     ) -> GiftChatEligibilityRuleDTO:
+        group_id = self.resolve_group_id(chat_id=self.chat.id, group_id=group_id)
+
         self.check_duplicates(
             chat_id=self.chat.id,
+            group_id=group_id,
             collection_slug=collection_slug,
             category=category,
         )
@@ -114,6 +121,7 @@ class TelegramChatGiftCollectionAction(ManagedChatBaseAction):
         new_rule = self.service.create(
             CreateTelegramChatGiftCollectionRuleDTO(
                 chat_id=self.chat.id,
+                group_id=group_id,
                 collection_slug=collection_slug,
                 model=model,
                 backdrop=backdrop,
@@ -146,6 +154,7 @@ class TelegramChatGiftCollectionAction(ManagedChatBaseAction):
 
         self.check_duplicates(
             chat_id=self.chat.id,
+            group_id=rule.group_id,
             collection_slug=collection_slug,
             category=category,
             entity_id=rule_id,

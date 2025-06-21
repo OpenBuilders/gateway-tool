@@ -2,8 +2,8 @@ from typing import Self
 
 from pydantic import BaseModel, model_validator, computed_field
 
-from core.dtos.chat.rules import ChatEligibilityRuleDTO, EligibilityCheckType
-from core.dtos.chat.rules.internal import EligibilitySummaryGiftCollectionInternalDTO
+from core.dtos.chat.rule import ChatEligibilityRuleDTO, EligibilityCheckType
+from core.dtos.chat.rule.internal import EligibilitySummaryGiftCollectionInternalDTO
 from core.dtos.gift.collection import GiftCollectionDTO
 from core.models.rule import TelegramChatGiftCollection
 
@@ -29,6 +29,7 @@ class BaseTelegramChatGiftCollectionRuleDTO(BaseModel):
 
 class CreateTelegramChatGiftCollectionRuleDTO(BaseTelegramChatGiftCollectionRuleDTO):
     chat_id: int
+    group_id: int
 
 
 class UpdateTelegramChatGiftCollectionRuleDTO(BaseTelegramChatGiftCollectionRuleDTO):
@@ -45,6 +46,7 @@ class GiftChatEligibilityRuleDTO(ChatEligibilityRuleDTO):
     def from_orm(cls, obj: TelegramChatGiftCollection) -> Self:
         return cls(
             id=obj.id,
+            group_id=obj.group_id,
             type=EligibilityCheckType.GIFT_COLLECTION,
             title=obj.collection.title if obj.collection else obj.category,
             expected=obj.threshold,
@@ -81,6 +83,7 @@ class GiftChatEligibilitySummaryDTO(GiftChatEligibilityRuleDTO):
     ) -> Self:
         return cls(
             id=internal_dto.id,
+            group_id=internal_dto.group_id,
             type=internal_dto.type,
             category=internal_dto.category,
             title=internal_dto.title,

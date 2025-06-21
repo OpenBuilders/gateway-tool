@@ -40,6 +40,7 @@ async def add_chat_jetton_rule(
         chat_slug=slug,
     )
     chat_jetton_rule = await telegram_chat_jetton_action.create(
+        group_id=rule.group_id,
         category=rule.category,
         address_raw=rule.address,
         threshold=rule.expected,

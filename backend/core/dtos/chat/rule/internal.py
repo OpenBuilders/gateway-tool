@@ -1,6 +1,6 @@
 from pydantic import BaseModel, computed_field
 
-from core.dtos.chat.rules import EligibilityCheckType
+from core.dtos.chat.rule import EligibilityCheckType
 from core.dtos.gift.collection import GiftCollectionDTO
 from core.dtos.resource import NftCollectionDTO, JettonDTO
 from core.dtos.sticker import MinimalStickerCollectionDTO, MinimalStickerCharacterDTO
@@ -13,6 +13,7 @@ class EligibilitySummaryInternalDTO(BaseModel):
     """
 
     id: int
+    group_id: int
     type: EligibilityCheckType
     title: str
     address_raw: str | None = None  # required for blockchain rules only
@@ -73,6 +74,7 @@ class RulesEligibilityGroupSummaryInternalDTO(BaseModel):
     provides utility methods to evaluate their collective eligibility state.
     """
 
+    id: int
     items: list[EligibilitySummaryInternalDTO]
 
     def __bool__(self):

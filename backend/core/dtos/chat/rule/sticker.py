@@ -1,11 +1,12 @@
-from typing import Any, Self
+from typing import Self
 
 from pydantic import BaseModel, computed_field
 
 from core.constants import PROMOTE_STICKER_COLLECTION_TEMPLATE
-from core.dtos.chat.rules import ChatEligibilityRuleDTO, EligibilityCheckType
-from core.dtos.chat.rules.internal import EligibilitySummaryStickerCollectionInternalDTO
+from core.dtos.chat.rule import ChatEligibilityRuleDTO, EligibilityCheckType
+from core.dtos.chat.rule.internal import EligibilitySummaryStickerCollectionInternalDTO
 from core.dtos.sticker import MinimalStickerCollectionDTO, MinimalStickerCharacterDTO
+from core.models.rule import TelegramChatStickerCollection
 
 
 class BaseTelegramChatStickerCollectionRuleDTO(BaseModel):
@@ -20,6 +21,7 @@ class CreateTelegramChatStickerCollectionRuleDTO(
     BaseTelegramChatStickerCollectionRuleDTO
 ):
     chat_id: int
+    group_id: int
 
 
 class UpdateTelegramChatStickerCollectionRuleDTO(
@@ -42,9 +44,10 @@ class StickerChatEligibilityRuleDTO(ChatEligibilityRuleDTO):
         return None
 
     @classmethod
-    def from_orm(cls, obj: Any) -> Self:
+    def from_orm(cls, obj: TelegramChatStickerCollection) -> Self:
         return cls(
             id=obj.id,
+            group_id=obj.group_id,
             type=EligibilityCheckType.STICKER_COLLECTION,
             title=(
                 obj.category
@@ -74,6 +77,7 @@ class StickerChatEligibilitySummaryDTO(StickerChatEligibilityRuleDTO):
     ) -> Self:
         return cls(
             id=internal_dto.id,
+            group_id=internal_dto.group_id,
             type=internal_dto.type,
             category=internal_dto.category,
             title=internal_dto.title,

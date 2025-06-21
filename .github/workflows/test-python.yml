@@ -35,4 +35,4 @@ jobs:
       # Step 5: Run Pytest in Docker
       - name: Run Tests with Pytest
         run: |
-          MODE=test ./docker.sh run --rm test
+          MODE=test ./docker.sh run --rm test pytest tests

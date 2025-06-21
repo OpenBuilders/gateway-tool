@@ -1,10 +1,11 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 from pytest_mock import MockerFixture
 from sqlalchemy.orm import Session
 from telethon.tl.types import ChatAdminRights
 
+from community_manager.actions.chat import CommunityManagerChatAction
 from tests.utils.misc import AsyncIterator
 from core.actions.chat import TelegramChatAction
 from core.constants import REQUIRED_BOT_PRIVILEGES
@@ -62,7 +63,9 @@ async def test_get_chat_data_success(
     )
 
     # Act: Call `_get_chat_data`
-    action = TelegramChatAction(db_session, telethon_client=mocked_telethon_client)
+    action = CommunityManagerChatAction(
+        db_session, telethon_client=mocked_telethon_client
+    )
 
     if should_raise:
         with pytest.raises(TelegramChatNotSufficientPrivileges):
@@ -92,7 +95,9 @@ async def test_load_participants(
     )
 
     # Act: Call `_load_participants`
-    action = TelegramChatAction(db_session, telethon_client=mocked_telethon_client)
+    action = CommunityManagerChatAction(
+        db_session, telethon_client=mocked_telethon_client
+    )
     await action._load_participants(chat.id)
 
     # Assert: Verify the participant was added to the database
@@ -127,18 +132,20 @@ async def test_create_success(
     # Mock fetch_and_push_profile_photo to return None (no profile photo)
     mock_fetch_photo = AsyncMock(return_value=None)
     mocker.patch.object(
-        TelegramChatAction, "fetch_and_push_profile_photo", mock_fetch_photo
+        CommunityManagerChatAction, "fetch_and_push_profile_photo", mock_fetch_photo
     )
 
     # Act
-    action = TelegramChatAction(db_session, telethon_client=mocked_telethon_client)
+    action = CommunityManagerChatAction(
+        db_session, telethon_client=mocked_telethon_client
+    )
     action.telethon_service.get_invite_link = AsyncMock(
         return_value=MagicMock(link=chat_invite_link)
     )
-    result = await action.create(
-        chat_identifier, sufficient_bot_privileges=sufficient_bot_privileges
-    )
-
+    event = Mock()
+    event.is_self = True
+    event.sufficient_bot_privileges = sufficient_bot_privileges
+    result = await action.create(chat_identifier, event=event)
     # Verify that the chat was created in the database
     assert isinstance(result, TelegramChatDTO)
     assert result.id == mocked_telethon_chat_sufficient_rights.id

@@ -4,7 +4,7 @@ from sqlalchemy import func, and_, or_
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import joinedload
 
-from core.models import TelegramChatUserWallet
+from core.models.wallet import TelegramChatUserWallet
 from core.models.chat import TelegramChatUser, TelegramChat
 from core.services.base import BaseService
 from core.services.chat import logger

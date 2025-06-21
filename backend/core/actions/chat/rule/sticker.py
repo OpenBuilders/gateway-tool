@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
 
 from core.actions.chat import ManagedChatBaseAction
-from core.dtos.chat.rules.sticker import (
+from core.dtos.chat.rule.sticker import (
     StickerChatEligibilityRuleDTO,
     CreateTelegramChatStickerCollectionRuleDTO,
     UpdateTelegramChatStickerCollectionRuleDTO,
@@ -38,6 +38,7 @@ class TelegramChatStickerCollectionAction(ManagedChatBaseAction):
     def check_duplicates(
         self,
         chat_id: int,
+        group_id: int,
         collection_id: int | None,
         character_id: int | None,
         category: str | None,
@@ -49,6 +50,7 @@ class TelegramChatStickerCollectionAction(ManagedChatBaseAction):
         rule exists in the database.
 
         :param chat_id: The identifier of the chat to check for duplicate rules.
+        :param group_id: The identifier of the group to check for duplicate rules.
         :param collection_id: The identifier of the sticker collection to check
             against or None.
         :param character_id: The identifier of the character to check against or None.
@@ -60,6 +62,7 @@ class TelegramChatStickerCollectionAction(ManagedChatBaseAction):
         """
         existing_rules = self.telegram_chat_sticker_collection_service.find(
             chat_id=chat_id,
+            group_id=group_id,
             collection_id=collection_id,
             character_id=character_id,
             category=category,
@@ -72,13 +75,16 @@ class TelegramChatStickerCollectionAction(ManagedChatBaseAction):
 
     async def create(
         self,
+        group_id: int | None,
         collection_id: int | None,
         character_id: int | None,
         category: None,
         threshold: int,
     ) -> StickerChatEligibilityRuleDTO:
+        group_id = self.resolve_group_id(chat_id=self.chat.id, group_id=group_id)
         self.check_duplicates(
             chat_id=self.chat.id,
+            group_id=group_id,
             collection_id=collection_id,
             character_id=character_id,
             category=category,
@@ -87,6 +93,7 @@ class TelegramChatStickerCollectionAction(ManagedChatBaseAction):
         new_rule = self.telegram_chat_sticker_collection_service.create(
             CreateTelegramChatStickerCollectionRuleDTO(
                 chat_id=self.chat.id,
+                group_id=group_id,
                 collection_id=collection_id,
                 character_id=character_id,
                 category=category,
@@ -117,6 +124,7 @@ class TelegramChatStickerCollectionAction(ManagedChatBaseAction):
 
         self.check_duplicates(
             chat_id=self.chat.id,
+            group_id=rule.group_id,
             collection_id=collection_id,
             character_id=character_id,
             category=category,
