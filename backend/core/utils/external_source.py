@@ -5,7 +5,7 @@ import httpx
 from pydantic import ValidationError
 
 from core.constants import REQUEST_TIMEOUT, READ_TIMEOUT, CONNECT_TIMEOUT
-from core.dtos.chat.rules.whitelist import WhitelistRuleCPO
+from core.dtos.chat.rule.whitelist import WhitelistRuleCPO
 from core.exceptions.chat import TelegramChatInvalidExternalSourceError
 
 

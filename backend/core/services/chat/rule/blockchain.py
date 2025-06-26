@@ -10,13 +10,15 @@ from core.services.chat.rule.base import BaseTelegramChatRuleService
 logger = logging.getLogger(__name__)
 
 
-class TelegramChatJettonService(BaseTelegramChatRuleService):
+class TelegramChatJettonService(BaseTelegramChatRuleService[TelegramChatJetton]):
     model = TelegramChatJetton
 
 
-class TelegramChatNFTCollectionService(BaseTelegramChatRuleService):
+class TelegramChatNFTCollectionService(
+    BaseTelegramChatRuleService[TelegramChatNFTCollection]
+):
     model = TelegramChatNFTCollection
 
 
-class TelegramChatToncoinService(BaseTelegramChatRuleService):
+class TelegramChatToncoinService(BaseTelegramChatRuleService[TelegramChatToncoin]):
     model = TelegramChatToncoin

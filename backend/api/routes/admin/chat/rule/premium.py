@@ -50,6 +50,7 @@ async def get_premium_rule(
 async def add_premium_rule(
     request: Request,
     slug: str,
+    group_id: int | None = None,
     db_session: Session = Depends(get_db_session),
 ) -> ChatEligibilityRuleFDO:
     action = TelegramChatPremiumAction(
@@ -57,7 +58,9 @@ async def add_premium_rule(
         chat_slug=slug,
         db_session=db_session,
     )
-    return ChatEligibilityRuleFDO.model_validate(action.create().model_dump())
+    return ChatEligibilityRuleFDO.model_validate(
+        action.create(group_id=group_id).model_dump()
+    )
 
 
 @manage_premium_rules_router.put(

@@ -18,49 +18,83 @@ from core.db import Base
 
 if TYPE_CHECKING:
     from core.models.gift import GiftCollection
+    from core.models.chat import TelegramChat
 
 
-class TelegramChatPremium(Base):
-    __tablename__ = "telegram_chat_premium"
+class TelegramChatRuleGroup(Base):
+    __tablename__ = "telegram_chat_rule_group"
 
-    id = mapped_column(Integer, primary_key=True, autoincrement=True)
-    chat_id = mapped_column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chat_id: Mapped[int] = mapped_column(
         ForeignKey("telegram_chat.id", ondelete="CASCADE"), nullable=False
     )
-    is_enabled = mapped_column(Boolean, nullable=False, default=False)
-    created_at = mapped_column(
+    chat = relationship(
+        "TelegramChat",
+        backref="rule_groups",
+    )
+    order: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    __table_args__ = (
-        UniqueConstraint("chat_id", name="uix_chat_premium_chat_id_unique"),
-    )
-
-
-class TelegramChatEmoji(Base):
-    __tablename__ = "telegram_chat_emoji"
-
-    id = mapped_column(Integer, primary_key=True, autoincrement=True)
-    chat_id = mapped_column(
-        ForeignKey("telegram_chat.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    emoji_id = mapped_column(String(255), nullable=False)
-    is_enabled = mapped_column(Boolean, nullable=False, default=False)
-    created_at = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    __table_args__ = (
-        UniqueConstraint("chat_id", name="uix_chat_emoji_chat_id_unique"),
     )
 
 
 class TelegramChatRuleBase(Base):
     __abstract__ = True
 
-    id = mapped_column(Integer, primary_key=True, autoincrement=True)
-    chat_id = mapped_column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    group_id: Mapped[int] = mapped_column(
+        ForeignKey("telegram_chat_rule_group.id", ondelete="NO ACTION"), nullable=False
+    )
+    chat_id: Mapped[int] = mapped_column(
         ForeignKey("telegram_chat.id", ondelete="CASCADE"), nullable=False
     )
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    grants_write_access: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class TelegramChatPremium(TelegramChatRuleBase):
+    __tablename__ = "telegram_chat_premium"
+
+    group: Mapped["TelegramChatRuleGroup"] = relationship(
+        "TelegramChatRuleGroup",
+        backref="premium_rules",
+    )
+    chat: Mapped["TelegramChat"] = relationship(
+        "TelegramChat",
+        backref="premium_rules",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("chat_id", name="uix_chat_premium_chat_id_unique"),
+    )
+
+
+class TelegramChatEmoji(TelegramChatRuleBase):
+    __tablename__ = "telegram_chat_emoji"
+
+    emoji_id = mapped_column(String(255), nullable=False)
+
+    group: Mapped["TelegramChatRuleGroup"] = relationship(
+        "TelegramChatRuleGroup",
+        backref="emoji_rules",
+    )
+    chat: Mapped["TelegramChat"] = relationship(
+        "TelegramChat",
+        backref="emoji_rules",
+    )
+    __table_args__ = (
+        UniqueConstraint("chat_id", name="uix_chat_emoji_chat_id_unique"),
+    )
+
+
+class TelegramChatThresholdRuleBase(TelegramChatRuleBase):
+    __abstract__ = True
+
     threshold = mapped_column(
         BigInteger, nullable=False, doc="Minimum amount of items to hold"
     )
@@ -69,18 +103,22 @@ class TelegramChatRuleBase(Base):
         nullable=True,
         doc="Optional category name that is mapped to the logic in the code",
     )
-    grants_write_access = mapped_column(Boolean, nullable=False, default=False)
-    is_enabled = mapped_column(Boolean, nullable=False, default=True)
-    created_at = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+
+
+class TelegramChatToncoin(TelegramChatThresholdRuleBase):
+    __tablename__ = "telegram_chat_toncoin"
+
+    group: Mapped["TelegramChatRuleGroup"] = relationship(
+        "TelegramChatRuleGroup",
+        backref="toncoin_rules",
+    )
+    chat: Mapped["TelegramChat"] = relationship(
+        "TelegramChat",
+        backref="toncoin_rules",
     )
 
 
-class TelegramChatToncoin(TelegramChatRuleBase):
-    __tablename__ = "telegram_chat_toncoin"
-
-
-class TelegramChatJetton(TelegramChatRuleBase):
+class TelegramChatJetton(TelegramChatThresholdRuleBase):
     __tablename__ = "telegram_chat_jetton"
 
     address = mapped_column(
@@ -92,11 +130,20 @@ class TelegramChatJetton(TelegramChatRuleBase):
         lazy="joined",
     )
 
+    group: Mapped["TelegramChatRuleGroup"] = relationship(
+        "TelegramChatRuleGroup",
+        backref="jetton_rules",
+    )
+    chat: Mapped["TelegramChat"] = relationship(
+        "TelegramChat",
+        backref="jetton_rules",
+    )
+
     def __repr__(self):
         return f"<TelegramChatJetton({self.address=}, {self.chat_id=})>"
 
 
-class TelegramChatNFTCollection(TelegramChatRuleBase):
+class TelegramChatNFTCollection(TelegramChatThresholdRuleBase):
     __tablename__ = "telegram_chat_nft_collection"
 
     address = mapped_column(
@@ -115,27 +162,28 @@ class TelegramChatNFTCollection(TelegramChatRuleBase):
         lazy="joined",
     )
 
+    group: Mapped["TelegramChatRuleGroup"] = relationship(
+        "TelegramChatRuleGroup",
+        backref="nft_collection_rules",
+    )
+    chat: Mapped["TelegramChat"] = relationship(
+        "TelegramChat",
+        backref="nft_collection_rules",
+    )
+
     def __repr__(self):
         return f"<TelegramChatNFTCollection({self.address=}, {self.chat_id=})>"
 
 
-class TelegramChatWhitelistBase(Base):
+class TelegramChatWhitelistBase(TelegramChatRuleBase):
     __abstract__ = True
 
-    id = mapped_column(Integer, primary_key=True, autoincrement=True)
-    chat_id = mapped_column(
-        ForeignKey("telegram_chat.id", ondelete="CASCADE"), nullable=False
-    )
     name = mapped_column(String(255), nullable=False)
     description = mapped_column(String(255), nullable=True)
-    is_enabled = mapped_column(Boolean, nullable=False, default=True)
     content = mapped_column(
         JSON,
         nullable=True,
         doc="List of Telegram IDs as integers that are allowed to access the chat, e.g. `[123455, 122234, 123456]`",
-    )
-    created_at = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at = mapped_column(
         DateTime(timezone=True),
@@ -160,6 +208,15 @@ class TelegramChatWhitelistExternalSource(TelegramChatWhitelistBase):
         doc="Header value that will be used for authentication",
     )
 
+    group: Mapped["TelegramChatRuleGroup"] = relationship(
+        "TelegramChatRuleGroup",
+        backref="external_source_rules",
+    )
+    chat: Mapped["TelegramChat"] = relationship(
+        "TelegramChat",
+        backref="external_source_rules",
+    )
+
     __table_args__ = (
         UniqueConstraint(
             "chat_id", "name", name="uix_chat_external_source_chat_name_unique"
@@ -173,6 +230,15 @@ class TelegramChatWhitelistExternalSource(TelegramChatWhitelistBase):
 class TelegramChatWhitelist(TelegramChatWhitelistBase):
     __tablename__ = "telegram_chat_whitelist"
 
+    group: Mapped["TelegramChatRuleGroup"] = relationship(
+        "TelegramChatRuleGroup",
+        backref="whitelist_rules",
+    )
+    chat: Mapped["TelegramChat"] = relationship(
+        "TelegramChat",
+        backref="whitelist_rules",
+    )
+
     def __repr__(self):
         return f"<TelegramChatWhitelist({self.chat_id=}, {self.name=})>"
 
@@ -181,7 +247,7 @@ class TelegramChatWhitelist(TelegramChatWhitelistBase):
     )
 
 
-class TelegramChatStickerCollection(TelegramChatRuleBase):
+class TelegramChatStickerCollection(TelegramChatThresholdRuleBase):
     __tablename__ = "telegram_chat_sticker_collection"
     collection_id = mapped_column(
         ForeignKey("sticker_collection.id", ondelete="CASCADE"),
@@ -198,6 +264,14 @@ class TelegramChatStickerCollection(TelegramChatRuleBase):
         nullable=True,
         doc="Character ID that will be used to check eligibility for the collection.",
     )
+    group = relationship(
+        "TelegramChatRuleGroup",
+        backref="sticker_collection_rules",
+    )
+    chat = relationship(
+        "TelegramChat",
+        backref="sticker_collection_rules",
+    )
     character = relationship(
         "StickerCharacter",
         lazy="joined",
@@ -205,7 +279,7 @@ class TelegramChatStickerCollection(TelegramChatRuleBase):
     )
 
 
-class TelegramChatGiftCollection(TelegramChatRuleBase):
+class TelegramChatGiftCollection(TelegramChatThresholdRuleBase):
     __tablename__ = "telegram_chat_gift_collection"
     collection_slug = mapped_column(
         ForeignKey("gift_collection.slug", ondelete="CASCADE"),
@@ -231,4 +305,13 @@ class TelegramChatGiftCollection(TelegramChatRuleBase):
         String(255),
         nullable=True,
         doc="Pattern that will be used to check eligibility for the collection.",
+    )
+
+    group: Mapped["TelegramChatRuleGroup"] = relationship(
+        "TelegramChatRuleGroup",
+        backref="gift_collection_rules",
+    )
+    chat: Mapped["TelegramChat"] = relationship(
+        "TelegramChat",
+        backref="gift_collection_rules",
     )

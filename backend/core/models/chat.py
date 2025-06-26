@@ -49,15 +49,6 @@ class TelegramChat(Base):
     )
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    whitelist_external_sources = relationship(
-        "TelegramChatWhitelistExternalSource",
-        backref="chat",
-    )
-    whitelist_sources = relationship(
-        "TelegramChatWhitelist",
-        backref="chat",
-    )
-
     def __repr__(self):
         return f"<TelegramChat(id={self.id}, title={self.title})>"
 

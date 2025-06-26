@@ -8,18 +8,18 @@ from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
 from core.actions.chat.base import ManagedChatBaseAction
 from core.actions.jetton import JettonAction
 from core.actions.nft_collection import NftCollectionAction
-from core.dtos.chat.rules import ChatEligibilityRuleDTO
-from core.dtos.chat.rules.nft import (
+from core.dtos.chat.rule import ChatEligibilityRuleDTO
+from core.dtos.chat.rule.nft import (
     CreateTelegramChatNFTCollectionRuleDTO,
     NftEligibilityRuleDTO,
     UpdateTelegramChatNFTCollectionRuleDTO,
 )
-from core.dtos.chat.rules.jetton import (
+from core.dtos.chat.rule.jetton import (
     CreateTelegramChatJettonRuleDTO,
     UpdateTelegramChatJettonRuleDTO,
     JettonEligibilityRuleDTO,
 )
-from core.dtos.chat.rules.toncoin import (
+from core.dtos.chat.rule.toncoin import (
     CreateTelegramChatToncoinRuleDTO,
     UpdateTelegramChatToncoinRuleDTO,
 )
@@ -105,6 +105,7 @@ class TelegramChatNFTCollectionAction(ManagedChatBaseAction):
     def check_duplicate(
         self,
         chat_id: int,
+        group_id: int,
         address_raw: str | None,
         asset: NftCollectionAsset | None,
         category: NftCollectionCategoryType | None,
@@ -121,6 +122,7 @@ class TelegramChatNFTCollectionAction(ManagedChatBaseAction):
         (if provided), and checking for duplicates.
 
         :param chat_id: The unique identifier for the Telegram chat where the rule applies.
+        :param group_id: The unique identifier for the group where the rule applies.
         :param address_raw: The address associated with the rule (optional).
         :param asset: The asset associated with the rule, of type NftCollectionAsset (optional).
         :param category: The category of the currency to which the rule applies, defined
@@ -133,6 +135,7 @@ class TelegramChatNFTCollectionAction(ManagedChatBaseAction):
         """
         existing_rules = self.telegram_chat_nft_collection_service.find(
             chat_id=chat_id,
+            group_id=group_id,
             address=address_raw,
             asset=asset,
             category=category,
@@ -145,6 +148,7 @@ class TelegramChatNFTCollectionAction(ManagedChatBaseAction):
 
     async def create(
         self,
+        group_id: int | None,
         asset: NftCollectionAsset | None,
         address_raw: str | None,
         category: NftCollectionCategoryType | None,
@@ -161,12 +165,14 @@ class TelegramChatNFTCollectionAction(ManagedChatBaseAction):
             the final collection address.
         :param category: Represents an optional category of the NFT collection.
         :param threshold: An integer value specifying the threshold condition for the rule.
+        :param group_id: An optional integer value specifying the group ID for the rule.
 
         :return: A data transfer object (DTO) representing the created NFT eligibility rule.
             The DTO encapsulates all properties of the rule created for the chat and
             NFT collection.
         """
         address = self._resolve_collection_address(address_raw, asset, category)
+        group_id = self.resolve_group_id(group_id=group_id)
 
         if not address:
             logger.error(
@@ -180,6 +186,7 @@ class TelegramChatNFTCollectionAction(ManagedChatBaseAction):
         nft_collection_dto = await self.nft_collection_action.get_or_create(address)
         self.check_duplicate(
             chat_id=self.chat.id,
+            group_id=group_id,
             address_raw=nft_collection_dto.address,
             asset=asset,
             category=category,
@@ -187,6 +194,7 @@ class TelegramChatNFTCollectionAction(ManagedChatBaseAction):
 
         new_rule = self.telegram_chat_nft_collection_service.create(
             CreateTelegramChatNFTCollectionRuleDTO(
+                group_id=group_id,
                 category=category,
                 asset=asset,
                 chat_id=self.chat.id,
@@ -257,6 +265,7 @@ class TelegramChatNFTCollectionAction(ManagedChatBaseAction):
         nft_collection_dto = await self.nft_collection_action.get_or_create(address)
         self.check_duplicate(
             chat_id=self.chat.id,
+            group_id=rule.group_id,
             address_raw=nft_collection_dto.address,
             asset=asset,
             category=category,
@@ -279,8 +288,18 @@ class TelegramChatNFTCollectionAction(ManagedChatBaseAction):
         return NftEligibilityRuleDTO.from_nft_collection_rule(rule)
 
     async def delete(self, rule_id: int) -> None:
+        try:
+            group_id = self.telegram_chat_nft_collection_service.get(
+                rule_id, chat_id=self.chat.id
+            ).group_id
+        except NoResultFound:
+            raise HTTPException(
+                detail="Rule not found",
+                status_code=HTTP_404_NOT_FOUND,
+            )
         self.telegram_chat_nft_collection_service.delete(rule_id, chat_id=self.chat.id)
         logger.info(f"Deleted chat nft collection rule {rule_id!r}")
+        self.remove_group_if_empty(group_id=group_id)
 
 
 class TelegramChatJettonAction(ManagedChatBaseAction):
@@ -304,6 +323,7 @@ class TelegramChatJettonAction(ManagedChatBaseAction):
     def check_duplicate(
         self,
         chat_id: int,
+        group_id: int,
         address_raw: str,
         category: CurrencyCategory | None,
         entity_id: int | None = None,
@@ -319,6 +339,7 @@ class TelegramChatJettonAction(ManagedChatBaseAction):
         redundant rules are added to the system.
 
         :param chat_id: ID of the Telegram chat for which the rule is being verified
+        :param group_id: ID of the group for which the rule is being verified
         :param address_raw: Address of the entity to be checked for duplicate rules
         :param category: Category of the currency to filter the rules
         :param entity_id: Identifier of the existing rule to exclude from duplicate
@@ -327,6 +348,7 @@ class TelegramChatJettonAction(ManagedChatBaseAction):
         """
         existing_rules = self.telegram_chat_jetton_service.find(
             chat_id=chat_id,
+            group_id=group_id,
             address=address_raw,
             category=category,
         )
@@ -338,6 +360,7 @@ class TelegramChatJettonAction(ManagedChatBaseAction):
 
     async def create(
         self,
+        group_id: int | None,
         address_raw: str,
         category: CurrencyCategory | None,
         threshold: float | int,
@@ -351,6 +374,7 @@ class TelegramChatJettonAction(ManagedChatBaseAction):
         :param address_raw: The raw address of the jetton to associate.
         :param category: The category of the currency or jetton, if applicable.
         :param threshold: The minimum threshold value to set for the rule.
+        :param group_id: The group ID to associate with the rule, if applicable.
         :return: A data transfer object (DTO) representing the created chat-eligibility
             rule linked to the jetton.
         :raises HTTPException: If there is a problem resolving the jetton address or
@@ -363,11 +387,20 @@ class TelegramChatJettonAction(ManagedChatBaseAction):
                 detail="Can't resolve jetton address",
                 status_code=HTTP_400_BAD_REQUEST,
             )
-        self.check_duplicate(self.chat.id, jetton_dto.address, category)
+
+        group_id = self.resolve_group_id(group_id=group_id)
+
+        self.check_duplicate(
+            chat_id=self.chat.id,
+            group_id=group_id,
+            address_raw=jetton_dto.address,
+            category=category,
+        )
 
         new_rule = self.telegram_chat_jetton_service.create(
             CreateTelegramChatJettonRuleDTO(
                 chat_id=self.chat.id,
+                group_id=group_id,
                 address=jetton_dto.address,
                 category=category,
                 threshold=threshold,
@@ -413,7 +446,11 @@ class TelegramChatJettonAction(ManagedChatBaseAction):
         jetton_dto = await self.jetton_action.get_or_create(address_raw)
 
         self.check_duplicate(
-            self.chat.id, jetton_dto.address, category, entity_id=rule.id
+            chat_id=self.chat.id,
+            group_id=rule.group_id,
+            address_raw=jetton_dto.address,
+            category=category,
+            entity_id=rule.id,
         )
 
         updated_rule = self.telegram_chat_jetton_service.update(
@@ -431,8 +468,18 @@ class TelegramChatJettonAction(ManagedChatBaseAction):
         return JettonEligibilityRuleDTO.from_jetton_rule(updated_rule)
 
     async def delete(self, rule_id: int) -> None:
+        try:
+            group_id = self.telegram_chat_jetton_service.get(
+                rule_id, chat_id=self.chat.id
+            ).group_id
+        except NoResultFound:
+            raise HTTPException(
+                detail="Rule not found",
+                status_code=HTTP_404_NOT_FOUND,
+            )
         self.telegram_chat_jetton_service.delete(rule_id, chat_id=self.chat.id)
         logger.info(f"Deleted chat jetton rule {rule_id!r}")
+        self.remove_group_if_empty(group_id=group_id)
 
 
 class TelegramChatToncoinAction(ManagedChatBaseAction):
@@ -455,6 +502,7 @@ class TelegramChatToncoinAction(ManagedChatBaseAction):
     def check_duplicate(
         self,
         chat_id: int,
+        group_id: int,
         category: CurrencyCategory | None,
         entity_id: int | None = None,
     ) -> None:
@@ -463,6 +511,7 @@ class TelegramChatToncoinAction(ManagedChatBaseAction):
         chat, category, and optionally the entity ID. If a duplicate is found, an HTTPException is raised.
 
         :param chat_id: The identifier of the chat to check for duplicate rules.
+        :param group_id: The identifier of the group to check for duplicate rules.
         :param category: The category of the rule to check for duplication.
         :param entity_id: The unique identifier of the rule entity. It is optional and defaults to None.
         :return: None. It raises an HTTPException if a duplicate rule is found.
@@ -470,6 +519,7 @@ class TelegramChatToncoinAction(ManagedChatBaseAction):
         """
         existing_rules = self.telegram_chat_toncoin_service.find(
             chat_id=chat_id,
+            group_id=group_id,
             category=category,
         )
         if next(filter(lambda rule: rule.id != entity_id, existing_rules), None):
@@ -480,6 +530,7 @@ class TelegramChatToncoinAction(ManagedChatBaseAction):
 
     def create(
         self,
+        group_id: int | None,
         category: CurrencyCategory | None,
         threshold: float | int,
     ) -> ChatEligibilityRuleDTO:
@@ -495,14 +546,17 @@ class TelegramChatToncoinAction(ManagedChatBaseAction):
 
         :param category: The currency category to associate with the new TON rule.
         :param threshold: The minimum threshold value for the TON rule.
+        :param group_id: The group ID to associate with the new TON rule, if applicable.
         :return: A DTO representing the chat eligibility rule created from the
                  TON rule.
         :raises HTTPException: If a duplicate rule of the specified type and category is found.
         """
-        self.check_duplicate(chat_id=self.chat.id, category=category)
+        group_id = self.resolve_group_id(group_id=group_id)
+        self.check_duplicate(chat_id=self.chat.id, group_id=group_id, category=category)
         new_rule = self.telegram_chat_toncoin_service.create(
             CreateTelegramChatToncoinRuleDTO(
                 chat_id=self.chat.id,
+                group_id=group_id,
                 category=category,
                 threshold=threshold,
                 is_enabled=True,
@@ -538,7 +592,12 @@ class TelegramChatToncoinAction(ManagedChatBaseAction):
                 detail="Rule not found",
                 status_code=HTTP_404_NOT_FOUND,
             )
-        self.check_duplicate(chat_id=self.chat.id, category=category, entity_id=rule.id)
+        self.check_duplicate(
+            chat_id=self.chat.id,
+            group_id=rule.group_id,
+            category=category,
+            entity_id=rule.id,
+        )
 
         updated_rule = self.telegram_chat_toncoin_service.update(
             rule=rule,
@@ -552,5 +611,16 @@ class TelegramChatToncoinAction(ManagedChatBaseAction):
         return ChatEligibilityRuleDTO.from_toncoin_rule(updated_rule)
 
     def delete(self, rule_id: int) -> None:
+        try:
+            group_id = self.telegram_chat_toncoin_service.get(
+                rule_id, chat_id=self.chat.id
+            ).group_id
+        except NoResultFound:
+            raise HTTPException(
+                detail="Rule not found",
+                status_code=HTTP_404_NOT_FOUND,
+            )
         self.telegram_chat_toncoin_service.delete(rule_id, chat_id=self.chat.id)
         logger.info(f"Deleted chat TON rule {rule_id!r}")
+
+        self.remove_group_if_empty(group_id=group_id)

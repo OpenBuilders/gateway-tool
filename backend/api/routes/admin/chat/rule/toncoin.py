@@ -41,6 +41,7 @@ async def add_chat_toncoin_rule(
     )
     return ToncoinEligibilityRuleFDO.model_validate(
         telegram_chat_toncoin_action.create(
+            group_id=rule.group_id,
             category=rule.category,
             threshold=rule.expected,
         ).model_dump()

@@ -38,6 +38,7 @@ async def add_chat_whitelist_rule(
         chat_slug=slug,
     )
     new_rule = action.create(
+        group_id=rule.group_id,
         name=rule.name,
         description=rule.description,
     )
@@ -121,6 +122,7 @@ async def add_chat_whitelist_external_source_rule(
     )
     try:
         new_rule = await action.create(
+            group_id=rule.group_id,
             name=rule.name,
             description=rule.description,
             external_source_url=str(rule.url),

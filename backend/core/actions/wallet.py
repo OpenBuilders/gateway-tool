@@ -107,12 +107,26 @@ class WalletAction(BaseAction):
                 ex=DEFAULT_WALLET_TRACK_EXPIRATION,
             )
 
-        # Run initial wallet data loading
-        task_result: AsyncResult = app.send_task(
-            "fetch-wallet-details",
-            args=(wallet_details.wallet_address,),
-            queue=CELERY_WALLET_FETCH_QUEUE_NAME,
+        redis_service = RedisService()
+        cache_set = redis_service.set(
+            key=f"wallet-details-{wallet_details.wallet_address}",
+            value="1",
+            # Only allow manual indexing once a minute
+            ex=60,
+            nx=True,
         )
+        task_result: AsyncResult | None = None
+        if cache_set:
+            # Run initial wallet data loading
+            task_result = app.send_task(
+                "fetch-wallet-details",
+                args=(wallet_details.wallet_address,),
+                queue=CELERY_WALLET_FETCH_QUEUE_NAME,
+            )
+        else:
+            logger.warning(
+                f"Wallet {wallet_details.wallet_address!r} was already indexed over this minute. Skipping initial indexing."
+            )
 
         if not same_wallet_connected:
             await self.on_wallet_reconnect(
@@ -124,7 +138,7 @@ class WalletAction(BaseAction):
         logger.info(
             f"User {user_id!r} linked wallet {wallet_details.wallet_address!r} to the chat {chat.id!r}"
         )
-        return task_result.task_id
+        return task_result.task_id if task_result else None
 
     async def on_wallet_reconnect(
         self, chat: TelegramChat, user_id: int, is_disconnecting: bool

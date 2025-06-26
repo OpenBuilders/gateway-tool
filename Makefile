@@ -31,7 +31,7 @@ migrate:
 	./docker.sh run --rm api alembic upgrade head
 
 test:
-	MODE=test ./docker.sh run --rm -it test pytest tests/
+	MODE=test ./docker.sh run --rm -it test pytest tests
 
 _install_python_version:
 	echo "\n>Install Python version in pyenv if it doesn't exist yet..."

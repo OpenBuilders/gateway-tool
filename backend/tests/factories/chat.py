@@ -7,7 +7,7 @@ from core.models.chat import TelegramChat, TelegramChatUser
 class TelegramChatFactory(SQLAlchemyModelFactory):
     class Meta:
         model = TelegramChat
-        sqlalchemy_session_persistence = "commit"
+        sqlalchemy_session_persistence = "flush"
 
     id = factory.Sequence(lambda n: n + 1)
     title = factory.Sequence(lambda n: f"Chat {n}")
@@ -25,7 +25,7 @@ class TelegramChatFactory(SQLAlchemyModelFactory):
 class TelegramChatUserFactory(SQLAlchemyModelFactory):
     class Meta:
         model = TelegramChatUser
-        sqlalchemy_session_persistence = "commit"
+        sqlalchemy_session_persistence = "flush"
 
     user_id = factory.SelfAttribute("user.id")
     user = factory.SubFactory("tests.factories.user.UserFactory")

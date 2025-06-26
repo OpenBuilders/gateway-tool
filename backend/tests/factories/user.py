@@ -7,7 +7,7 @@ from core.models.user import User
 class UserFactory(SQLAlchemyModelFactory):
     class Meta:
         model = User
-        sqlalchemy_session_persistence = "commit"
+        sqlalchemy_session_persistence = "flush"
 
     telegram_id = factory.Sequence(lambda n: n + 1000000)
     username = factory.Sequence(lambda n: f"user{n}")

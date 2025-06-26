@@ -7,6 +7,7 @@ from core.models.chat import (  # noqa
 )
 from core.models.gift import GiftCollection, GiftUnique  # noqa
 from core.models.rule import (  # noqa
+    TelegramChatRuleGroup,
     TelegramChatJetton,
     TelegramChatNFTCollection,
     TelegramChatToncoin,

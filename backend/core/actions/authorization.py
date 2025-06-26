@@ -10,11 +10,11 @@ from telethon.errors import (
 )
 
 from core.actions.base import BaseAction
-from core.dtos.chat.rules import (
-    EligibilityCheckType,
+from core.dtos.chat.rule import (
     TelegramChatEligibilityRulesDTO,
 )
-from core.dtos.chat.rules.internal import (
+from core.enums.rule import EligibilityCheckType
+from core.dtos.chat.rule.internal import (
     EligibilitySummaryInternalDTO,
     RulesEligibilitySummaryInternalDTO,
     RulesEligibilityGroupSummaryInternalDTO,
@@ -386,6 +386,7 @@ class AuthorizationAction(BaseAction):
             [
                 EligibilitySummaryInternalDTO(
                     id=rule.id,
+                    group_id=rule.group_id,
                     type=EligibilityCheckType.TONCOIN,
                     category=rule.category,
                     expected=rule.threshold,
@@ -401,6 +402,7 @@ class AuthorizationAction(BaseAction):
             [
                 EligibilitySummaryJettonInternalDTO(
                     id=rule.id,
+                    group_id=rule.group_id,
                     type=EligibilityCheckType.JETTON,
                     category=rule.category,
                     expected=rule.threshold,
@@ -426,6 +428,7 @@ class AuthorizationAction(BaseAction):
             [
                 EligibilitySummaryNftCollectionInternalDTO(
                     id=rule.id,
+                    group_id=rule.group_id,
                     type=EligibilityCheckType.NFT_COLLECTION,
                     category=rule.category,
                     asset=NftCollectionAsset.from_string(rule.asset),
@@ -450,6 +453,7 @@ class AuthorizationAction(BaseAction):
             [
                 EligibilitySummaryInternalDTO(
                     id=rule.id,
+                    group_id=rule.group_id,
                     type=EligibilityCheckType.PREMIUM,
                     expected=1,
                     title="Telegram Premium",
@@ -463,6 +467,7 @@ class AuthorizationAction(BaseAction):
             [
                 EligibilitySummaryStickerCollectionInternalDTO(
                     id=rule.id,
+                    group_id=rule.group_id,
                     type=EligibilityCheckType.STICKER_COLLECTION,
                     expected=rule.threshold,
                     title=(
@@ -490,6 +495,7 @@ class AuthorizationAction(BaseAction):
             [
                 EligibilitySummaryGiftCollectionInternalDTO(
                     id=rule.id,
+                    group_id=rule.group_id,
                     type=EligibilityCheckType.GIFT_COLLECTION,
                     expected=rule.threshold,
                     title=(rule.collection.title if rule.collection else rule.category),
@@ -512,6 +518,7 @@ class AuthorizationAction(BaseAction):
             [
                 EligibilitySummaryInternalDTO(
                     id=rule.id,
+                    group_id=rule.group_id,
                     type=EligibilityCheckType.EMOJI,
                     expected=1,
                     title=rule.emoji_id,
@@ -521,13 +528,11 @@ class AuthorizationAction(BaseAction):
                 for rule in eligibility_rules.emoji
             ]
         )
-        basic_group = RulesEligibilityGroupSummaryInternalDTO(
-            items=items,
-        )
-        whitelist_group = RulesEligibilityGroupSummaryInternalDTO(
-            items=[
+        items.extend(
+            [
                 EligibilitySummaryInternalDTO(
                     id=rule.id,
+                    group_id=rule.group_id,
                     type=EligibilityCheckType.WHITELIST,
                     expected=1,
                     title=rule.name,
@@ -537,10 +542,11 @@ class AuthorizationAction(BaseAction):
                 for rule in eligibility_rules.whitelist_sources
             ]
         )
-        external_source_group = RulesEligibilityGroupSummaryInternalDTO(
-            items=[
+        items.extend(
+            [
                 EligibilitySummaryInternalDTO(
                     id=rule.id,
+                    group_id=rule.group_id,
                     type=EligibilityCheckType.EXTERNAL_SOURCE,
                     expected=1,
                     title=rule.name,
@@ -550,11 +556,18 @@ class AuthorizationAction(BaseAction):
                 for rule in eligibility_rules.whitelist_external_sources
             ]
         )
+        # Group items by group ID
+        groups = defaultdict(list)
+        for item in items:
+            groups[item.group_id].append(item)
+
         return RulesEligibilitySummaryInternalDTO(
             groups=[
-                basic_group,
-                whitelist_group,
-                external_source_group,
+                RulesEligibilityGroupSummaryInternalDTO(
+                    items=group_items,
+                    id=group_id,
+                )
+                for group_id, group_items in groups.items()
             ],
             wallet=user_wallet.address if user_wallet else None,
         )
@@ -629,6 +642,8 @@ class AuthorizationAction(BaseAction):
             logger.info("No ineligible chat members found")
             return
 
+        logger.info(f"Found {len(ineligible_members)} ineligible chat members")
+
         for member in ineligible_members:
             try:
                 await self.kick_chat_member(member)
@@ -642,5 +657,3 @@ class AuthorizationAction(BaseAction):
                     f"Failed to kick chat member {member.chat_id=} and {member.user_id=} as user entity is missing",
                     exc_info=e,
                 )
-        else:
-            logger.info("No ineligible chat members found")

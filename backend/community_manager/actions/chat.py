@@ -54,7 +54,9 @@ class CommunityManagerChatAction(BaseAction):
         self.telegram_chat_user_service = TelegramChatUserService(db_session)
         self.redis_service = RedisService()
         self.cdn_service = CDNService()
-        self.authorization_action = AuthorizationAction(db_session)
+        self.authorization_action = AuthorizationAction(
+            db_session, telethon_client=telethon_client
+        )
         self.telethon_service = TelethonService(
             client=telethon_client,
             bot_token=community_manager_settings.telegram_bot_token,

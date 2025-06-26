@@ -66,7 +66,7 @@ def create_app() -> FastAPI:
         root_path="/api",
         title="Access",
         summary="Your access to the web3 world",
-        version="1.0.0",
+        version="1.1.0",
     )
     include_authenticated_routes(_app)
     include_non_authenticated_routes(_app)

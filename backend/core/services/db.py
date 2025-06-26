@@ -32,7 +32,7 @@ class DBService:
             yield session
             session.commit()
         except Exception as exc:
-            logger.warning(
+            logger.debug(
                 f"Internal Error: {exc.__class__.__name__}. Rolling back session."
             )
             session.rollback()

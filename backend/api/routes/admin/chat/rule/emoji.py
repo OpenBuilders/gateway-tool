@@ -61,6 +61,7 @@ async def add_emoji_rule(
     return EmojiChatEligibilityRuleFDO.model_validate(
         action.create(
             emoji_id=rule.emoji_id,
+            group_id=rule.group_id,
         ).model_dump()
     )
 
